@@ -117,7 +117,7 @@ class DatasetLoader():
                          }
 
         data_loaders = {
-            phase: torch.utils.data.DataLoader(image_datasets[phase], batch_size=4, shuffle=True)
+            phase: torch.utils.data.DataLoader(image_datasets[phase], batch_size=8, shuffle=True)
                                 for phase in ["train", "val"]
                        }
 
@@ -138,7 +138,8 @@ class Trainer():
         self.model = model
         self.device = device
         self.best_weights = copy.deepcopy(model.state_dict())
-        self.best_accuracy = 0.0
+        self.best_valid_accuracy = 0.0
+        self.best_valid_loss = float("inf")
 
     def train(self,
               epochs,
@@ -150,8 +151,13 @@ class Trainer():
               optimizer,
               scheduler):
 
+        # Early stopping condition
+        epochs_without_improvements = 0
+        patience = 7
+
         val_accuracy_history, val_loss_history = list(), list()
         start_time = time.time()
+
         print("\nTraining commenced. Computations on:", self.device)
 
         for epoch in range(epochs):
@@ -217,14 +223,32 @@ class Trainer():
                     val_loss_history.append(epoch_loss)
 
                 # Check if we got the best accuracy during validation. Save weights if true
-                if phase == "val" and epoch_accuracy > self.best_accuracy:
-                    self.best_accuracy = epoch_accuracy
+                if phase == "val" and epoch_accuracy > self.best_valid_accuracy:
+                    self.best_valid_accuracy = epoch_accuracy
                     self.best_weights = copy.deepcopy(self.model.state_dict())
+
+                # Loss tracking for early stopping to prevent overfitting
+                if phase == "val" and epoch_loss < self.best_valid_loss:
+                    self.best_valid_loss = epoch_loss
+
+                elif phase == "val" and epoch_loss > self.best_valid_loss:
+                    if epochs_without_improvements >= patience:
+                        print("Early stopping. No loss improvements "
+                              "on validation dataset after 7 epochs")
+                        break
+                    else:
+                        epochs_without_improvements += 1
+
+            # Move to the next epoch unless early stopping and we're breaking out
+            else:
+                continue
+            # Break if early stepping and we broke out from the nested loop
+            break
 
 
         training_time = time.time() - start_time
         print("\nTraining completed in:", training_time, " seconds")
-        print("BEST ACCURACY:", self.best_accuracy)
+        print("BEST ACCURACY:", self.best_valid_accuracy)
 
         self.model.load_state_dict(self.best_weights)
 

@@ -14,7 +14,7 @@ def parse_args():
     parser.add_argument('--test', help="Path to image/images to test on")
     parser.add_argument('--train', help="Path to folder with training and validation data")
     parser.add_argument('--gpu', default=True, help="Calculations done by GPU or CPU")
-    parser.add_argument('--epoch', type=int, default=5)
+    parser.add_argument('--epoch', type=int, default=15)
     parser.add_argument('--draw_metrics', default=False, help="Visualise training metrics upon completion")
     parser.add_argument('--visualize', default=False, help="TBA")
     parser.add_argument('--save_weights', help="Path to save weights after training",
