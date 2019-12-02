@@ -25,14 +25,6 @@ def parse_args():
     return arguments
 
 
-def model_visualisation(model, nb_of_images):
-
-    training = model.training
-    model.eval()
-
-
-
-
 def test_model(model, data_loaders, dataset_sizes, device):
     correct, total = 0, 0
 
@@ -88,15 +80,16 @@ def fine_tuning(image_dataset, data_loaders, dataset_sizes,
                                               optimizer=optimizer,
                                               scheduler=scheduler)
 
-    if args.draw_metrics:
-        visualiser = Visualizer()
-        visualiser.visualize_training_results(accuracy, loss)
-
     # Test model's performance on all validation images
     test_model(fit_model, data_loaders, dataset_sizes, device)
 
+    visualiser = Visualizer()
+    if args.draw_metrics:
+        visualiser.visualize_training_results(accuracy, loss)
+
     if args.visualize:
-        model_visualisation(fit_model, 10)
+        visualiser.model_visualisation(fit_model, 10, data_loaders,
+                                       device, class_names)
 
     # Save the model trained
     torch.save(fit_model.state_dict(), save_path)

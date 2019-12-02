@@ -5,11 +5,15 @@ from torchvision import datasets, transforms
 import os
 import sys
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Visualizer():
 
-    def visualize_training_results(self, accuracy, loss):
+    # MIGHT BE STATIC
+    def visualize_training_results(self,
+                                   accuracy,
+                                   loss):
 
         if len(accuracy) > 0 and len(loss) > 0:
             plt.subplot(1, 2, 1)
@@ -24,8 +28,60 @@ class Visualizer():
 
         return
 
-    def visualize_training_images(self):
-        pass
+    def model_visualisation(self,
+                            model,
+                            nb_of_images,
+                            data_loaders,
+                            device,
+                            class_names):
+
+        was_training = model.training
+        model.eval()
+        images_processed = 0
+        figure = plt.figure()
+
+        with torch.no_grad():
+            for i, (batch_of_images, labels) in enumerate(data_loaders["val"]):
+                batch = batch_of_images.to(device)
+                labels = labels.to(device)
+
+                activations = model(batch)
+                # classes_predicted: tensor([0, 1, 1, 1], device='cuda:0')
+                _, classes_predicted = torch.max(activations, dim=1)
+
+                # batch.size(): torch.Size([4, 3, 224, 224])
+                for i in range(batch.size()[0]):
+                    images_processed += 1
+
+                    ax = plt.subplot(nb_of_images // 2, 2, images_processed)
+                    ax.axis("off")
+
+                    ax.set_title(f"Predicted: {class_names[classes_predicted[i]]}")
+
+                    self.show(batch.cpu().data[i])
+
+                    if images_processed == nb_of_images:
+                        model.train(mode=was_training)
+                        return
+
+        model.train(mode=was_training)
+
+
+    def show(self, image, title=None):
+
+        img = image.numpy().transpose((1, 2, 0))
+        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array([0.229, 0.224, 0.225])
+        img = std * img + mean
+        img = np.clip(img, 0, 1)
+
+        plt.imshow(img)
+
+        if not title is None:
+            plt.title(title)
+
+        plt.show()
+        plt.pause(0.001)
 
 
 class DatasetLoader():
@@ -83,7 +139,6 @@ class Trainer():
         self.device = device
         self.best_weights = copy.deepcopy(model.state_dict())
         self.best_accuracy = 0.0
-        self.visualiser = Visualizer()
 
     def train(self,
               epochs,
@@ -172,9 +227,5 @@ class Trainer():
         print("BEST ACCURACY:", self.best_accuracy)
 
         self.model.load_state_dict(self.best_weights)
-
-        # Visualize performance metrics
-        #self.visualiser.visualize_training_results(accuracy=val_accuracy_history,
-        #                                           loss=val_loss_history)
 
         return self.model, val_accuracy_history, val_loss_history
