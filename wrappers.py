@@ -260,6 +260,7 @@ class Tester:
 
     def __init__(self, model):
         self.model = model
+        self.transformator = self.generate_transformations()
 
     def generate_transformations(self):
         """
@@ -279,21 +280,16 @@ class Tester:
 
         return transform
 
-    def process_images(self, path_to_images):
-        transformator = self.generate_transformations()
+    def preprocess_image(self, path_to_image):
 
-        # needs to return all images collected into batches
+        image = Image.open(path_to_image)
+        # Transform image
+        image_transformed = self.transformator(image)
+        # Unsqueeze image since torch accepts 4D tensors only:
+        # batch, channel, height, width
+        batch_transformed = torch.unsqueeze(image_transformed, 0)
 
-        for path in path_to_images:
-            # Load image
-            image = Image.open(path)
-            # Transform image
-            image_transformed = transformator(image)
-            # Unsqueeze image since torch accepts 4D tensors only:
-            # batch, channel, height, width
-            batch_transformed = torch.unsqueeze(image_transformed, 0)
-
-            return batch_transformed
+        return batch_transformed
 
     def predict(self, batch):
 
@@ -302,8 +298,7 @@ class Tester:
         # run over activations, pick index of the largest activation
         _, classes_predicted = torch.max(activations, dim=1)
         # convert activations into percents
-        result = torch.nn.functional.softmax(activations, dim=1)[0]
+        percents = torch.nn.functional.softmax(activations, dim=1)[0]
         # .item() allows to get value from: tensor([0.9006], grad_fn=<IndexBackward>)
 
-        print("Index:", classes_predicted.item(),
-              "Accuracy:", result[classes_predicted].item())
+        return classes_predicted.item(), percents[classes_predicted].item()

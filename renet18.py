@@ -11,6 +11,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser()
 
+    # Testing
     parser.add_argument('--test', help="Path to image/images to test on")
     parser.add_argument('--weights', help="Path to model's parameters to test")
 
@@ -62,14 +63,18 @@ def test(model, weights, images):
     model.eval()
 
     tester = Tester(model=model)
-    # this needs to be batches of images or just one image
-    batch = tester.process_images(images)
-    # maybe one method - make_predictions and then it simply returns predictions
-    # can hide line above, it doesn't need to return intermediate results here
-    predictions = tester.predict(batch)
 
+    # AlTERNATIVELY PUT ALL IMAGES IN A BATCH AND PROCESS AT THE SAME TIME
+    # ON GPU.
+    # OR BUILD TEST DATASET LOADER
 
+    for image_path in images[:5]:
+        image_name = os.path.split(image_path)[-1]
 
+        image_preprocessed = tester.preprocess_image(image_path)
+        class_predicted, accuracy = tester.predict(image_preprocessed)
+        # Can save image with its class name or whatever
+        print("Image:", image_name, " Class:", class_predicted, " Acc:", accuracy)
 
 
 def fine_tuning(image_dataset, data_loaders, dataset_sizes,
