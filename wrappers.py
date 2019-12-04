@@ -6,6 +6,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 
 
 class Visualizer():
@@ -253,3 +254,56 @@ class Trainer():
         self.model.load_state_dict(self.best_weights)
 
         return self.model, val_accuracy_history, val_loss_history
+
+
+class Tester:
+
+    def __init__(self, model):
+        self.model = model
+
+    def generate_transformations(self):
+        """
+        Testing image(s) need to be preprocessed first
+        :return:
+        """
+
+        transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+                                 )
+                                       ])
+
+        return transform
+
+    def process_images(self, path_to_images):
+        transformator = self.generate_transformations()
+
+        # needs to return all images collected into batches
+
+        for path in path_to_images:
+            # Load image
+            image = Image.open(path)
+            # Transform image
+            image_transformed = transformator(image)
+            # Unsqueeze image since torch accepts 4D tensors only:
+            # batch, channel, height, width
+            batch_transformed = torch.unsqueeze(image_transformed, 0)
+
+            return batch_transformed
+
+    def predict(self, batch):
+
+        # perform predictions on the batch provided
+        activations = self.model(batch)
+        # run over activations, pick index of the largest activation
+        _, classes_predicted = torch.max(activations, dim=1)
+        # convert activations into percents
+        result = torch.nn.functional.softmax(activations, dim=1)[0]
+        # .item() allows to get value from: tensor([0.9006], grad_fn=<IndexBackward>)
+
+        print("Index:", classes_predicted.item(),
+              "Accuracy:", result[classes_predicted].item())
