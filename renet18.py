@@ -56,6 +56,11 @@ def load_modify_model(nb_of_classes):
     return model
 
 
+def check_GPU():
+
+    return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
 def test(model, weights, images):
 
     # Load model and set it to evaluation mode
@@ -82,8 +87,9 @@ def fine_tuning(image_dataset, data_loaders, dataset_sizes,
 
     # Load and modify model's layers according to the problem getting solved
     model = load_modify_model(nb_of_classes=len(class_names))
+
     # Check if GPU's avaiable and move the model there
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = check_GPU()
     model.to(device)
 
     # Initialize loss function and optimizer
@@ -110,8 +116,15 @@ def fine_tuning(image_dataset, data_loaders, dataset_sizes,
                                               optimizer=optimizer,
                                               scheduler=scheduler)
 
-    # Test model's performance on all validation images
-    full_validation_test(fit_model, data_loaders, dataset_sizes, device)
+    # Test model's performance on all validation images with the best weights
+    # obtained during training
+    val_acc = Tester.validation(model=fit_model,
+                                data_loaders=data_loaders,
+                                device=device)
+
+    print("Accuracy on all validation dataset: {:.4f}".format(val_acc))
+
+    #full_validation_test(fit_model, data_loaders, dataset_sizes, device)
 
     visualiser = Visualizer()
     if args.draw_metrics:

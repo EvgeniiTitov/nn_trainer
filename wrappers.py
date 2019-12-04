@@ -9,11 +9,10 @@ import numpy as np
 from PIL import Image
 
 
-class Visualizer():
+class Visualizer:
 
-    # MIGHT BE STATIC
-    def visualize_training_results(self,
-                                   accuracy,
+    @staticmethod
+    def visualize_training_results(accuracy,
                                    loss):
 
         if len(accuracy) > 0 and len(loss) > 0:
@@ -85,7 +84,7 @@ class Visualizer():
         plt.pause(0.001)
 
 
-class DatasetLoader():
+class DatasetLoader:
     def __init__(self,
                  data_path):
         self.path_to_images = data_path
@@ -131,7 +130,7 @@ class DatasetLoader():
         return image_datasets, data_loaders, dataset_sizes, class_names
 
 
-class Trainer():
+class Trainer:
     def __init__(self,
                  model,
                  device="cpu"):
@@ -246,10 +245,8 @@ class Trainer():
             # Break if early stepping and we broke out from the nested loop
             break
 
-
         training_time = time.time() - start_time
-        print("\nTraining completed in:", training_time, " seconds")
-        print("BEST ACCURACY:", self.best_valid_accuracy)
+        print("\nTraining completed in: {:.1f} seconds".format(training_time))
 
         self.model.load_state_dict(self.best_weights)
 
@@ -262,7 +259,8 @@ class Tester:
         self.model = model
         self.transformator = self.generate_transformations()
 
-    def generate_transformations(self):
+    @staticmethod
+    def generate_transformations():
         """
         Testing image(s) need to be preprocessed first
         :return:
@@ -302,3 +300,24 @@ class Tester:
         # .item() allows to get value from: tensor([0.9006], grad_fn=<IndexBackward>)
 
         return classes_predicted.item(), percents[classes_predicted].item()
+
+    @staticmethod
+    def validation(model,
+                   data_loaders,
+                   device):
+
+        correct, total = 0, 0
+
+        with torch.no_grad():
+            for batch, labels in data_loaders["val"]:
+                batch_of_images = batch.to(device)
+                labels = labels.to(device)
+
+                batch_activations = model(batch_of_images)
+                # batch_predictions: tensor([0, 1, 1, 1], device='cuda:0')
+                _, batch_predictions = torch.max(batch_activations.data, dim=1)
+
+                total += labels.size(0)
+                correct += (batch_predictions == labels).sum().item()
+
+        return 100 * correct / total
