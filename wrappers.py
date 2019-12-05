@@ -153,7 +153,7 @@ class Trainer:
 
         # Early stopping condition
         epochs_without_improvements = 0
-        patience = 7
+        patience = 20
 
         val_accuracy_history, val_loss_history = list(), list()
         start_time = time.time()
