@@ -1,4 +1,4 @@
-from wrappers import DatasetLoader, Trainer, Visualizer, Tester
+from wrappers import DatasetLoader, IndividualTrainer, Visualizer, Tester
 from torchvision import models
 import torch.nn as nn
 import torch.optim as optim
@@ -116,8 +116,8 @@ def training(image_dataset,
                                           step_size=7,
                                           gamma=0.1)
 
-    trainer = Trainer(model=model,
-                      device=device)
+    trainer = IndividualTrainer(model=model,
+                                device=device)
 
     fit_model, accuracy, loss = trainer.train(epochs=nb_of_epochs,
                                               image_dataset=image_dataset,
@@ -197,13 +197,13 @@ if __name__ == "__main__":
             dataset_manager.generate_training_datasets()
 
         if args.learning_type == 0:
-            # Only a new classifier gets trained
+            # Only a new classifier gets trained (feature extraction)
             training(image_dataset, data_loaders, dataset_sizes,
                      class_names, nb_of_epochs, save_weights,
                      training_type=0)
 
         elif args.learning_type == 1:
-            # All layers will be trained
+            # All layers will be trained (fine tuning)
             training(image_dataset, data_loaders, dataset_sizes,
                      class_names, nb_of_epochs, save_weights,
                      training_type=1)

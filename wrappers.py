@@ -7,7 +7,8 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
-
+import torch.nn as nn
+from collections import defaultdict
 
 class Visualizer:
 
@@ -61,10 +62,10 @@ class Visualizer:
                     self.show(batch.cpu().data[i])
 
                     if images_processed == nb_of_images:
-                        model.train(mode=was_training)
+                        model.train_models(mode=was_training)
                         return
 
-        model.train(mode=was_training)
+        model.train_models(mode=was_training)
 
 
     def show(self, image, title=None):
@@ -86,23 +87,28 @@ class Visualizer:
 
 class DatasetLoader:
     def __init__(self,
-                 data_path):
+                 data_path,
+                 input_size=224,
+                 batch_size=8):
+
         self.path_to_images = data_path
+        self.input_size = input_size
+        self.batch_size = batch_size
         self.data_transforms = self.generate_transformations()
 
     def generate_transformations(self):
 
         data_transforms = {
             "train": transforms.Compose([
-                transforms.RandomResizedCrop(224),
+                transforms.RandomResizedCrop(self.input_size),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomRotation(degrees=15),
                 transforms.ColorJitter(),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
             "val": transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
+                transforms.Resize(self.input_size),  # 256 used to be
+                transforms.CenterCrop(self.input_size),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
                           }
@@ -113,11 +119,14 @@ class DatasetLoader:
 
         image_datasets = {
             phase: datasets.ImageFolder(os.path.join(self.path_to_images, phase),
-                                                     self.data_transforms[phase]) for phase in ["train", "val"]
+                                                     self.data_transforms[phase])
+                                                            for phase in ["train", "val"]
                          }
 
         data_loaders = {
-            phase: torch.utils.data.DataLoader(image_datasets[phase], batch_size=8, shuffle=True)
+            phase: torch.utils.data.DataLoader(image_datasets[phase],
+                                               batch_size=self.batch_size,
+                                               shuffle=True)
                                 for phase in ["train", "val"]
                        }
 
@@ -130,7 +139,7 @@ class DatasetLoader:
         return image_datasets, data_loaders, dataset_sizes, class_names
 
 
-class Trainer:
+class IndividualTrainer:
     def __init__(self,
                  model,
                  device="cpu"):
@@ -169,7 +178,7 @@ class Trainer:
                 # Set up the model in accordance with the phase. During evaluation we cannot
                 # tweak its parameters - no gradients get calculated, no backprop, no optim. step
                 if phase == "train":
-                    self.model.train()
+                    self.model.train_models()
                 else:
                     self.model.eval()
                 # Keep track of model's performance during the epoch
@@ -252,6 +261,122 @@ class Trainer:
 
         return self.model, val_accuracy_history, val_loss_history
 
+
+class GroupTrainer:
+
+    def __init__(self,
+                 models,
+                 path_to_training_data,
+                 dataloader,
+                 weights_savepath,
+                 number_of_classes,
+                 device,
+                 fine_tuning=False):
+
+        # List of models to train
+        self.models = models
+        self.nb_of_classes = number_of_classes
+        self.device = device
+        # Path to save weights for each model trained
+        self.save_path = weights_savepath
+        # Type of training
+        # CHECK ERROR HERE
+        self.freezing = fine_tuning
+        # Path to the data to train on (ImageFolder type folder)
+        self.training_data = path_to_training_data
+        # Dataloader that will preprocess training data for us
+        self.dataloader = dataloader
+
+        # If feature extraction, freeze models layers
+        if self.freezing:
+            self.freeze_layers()
+            print("\nModels layers frozen")
+
+        # Reshape models last layer accoding to the number of classes
+        # getting predicted
+        self.reshape_models()
+        print("\nModels classifiers reshaped to match N of classes")
+
+
+    def train_models(self,
+                     batch,
+                     epochs,
+                     criterion,
+                     optimizer,
+                     scheduler):
+
+        models_performance = defaultdict(list)
+
+        # Load data set
+        dataset_manager = self.dataloader(data_path=self.training_data,
+                                          batch_size=batch)
+
+        image_dataset, data_loaders, dataset_sizes, class_names = \
+            dataset_manager.generate_training_datasets()
+
+        for model in self.models:
+
+            # Inspection's input size is different. Generate new dataset
+            if model.__class__.__name__.lower() == "inception3":
+
+                dataset_manager = self.dataloader(data_path=self.training_data,
+                                                  input_size=299,
+                                                  batch_size=batch)
+
+                image_dataset, data_loaders, dataset_sizes, class_names = \
+                                        dataset_manager.generate_training_datasets()
+
+            # CREATE A NEW METHOD THAT PERFORMANS ACTUAL MODEL TRAINING. DO NOT OVERLOAD THIS METHOD
+
+
+
+
+
+
+
+
+    def freeze_layers(self):
+        """
+        Takes the models provided and freezes their layers
+        :return:
+        """
+        for model in self.models:
+
+            for parameter in model.parameters():
+                parameter.requires_grad = False
+
+    def reshape_models(self):
+        """
+        Takes the models provided and changes number of outputs from
+        1k to the number of classes getting predicted
+        :return:
+        """
+        for model in self.models:
+
+            if model.__class__.__name__ == "ResNet":
+                number_of_filters = model.fc.in_features
+                model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
+
+            elif model.__class__.__name__ == "AlexNet":
+                # 6th Dense layer's input size: 4096
+                number_of_filters = model.classifier[6].in_features
+                model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
+
+            elif model.__class__.__name__ == "VGG":
+                # For both VGGs 16-19 classifiers are the same
+                number_of_filters = model.classifier[6].in_features
+                model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
+
+            elif model.__class__.__name__ == "Inception3":
+                number_of_filters_AuX = model.AuxLogits.fc.in_features
+                number_of_filters = model.fc.in_features
+
+                model.AuxLogits.fc = nn.Linear(number_of_filters_AuX, self.nb_of_classes)
+                model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
+
+            else:
+                print("Invalid model's name")
+                sys.exit()
 
 class Tester:
 
