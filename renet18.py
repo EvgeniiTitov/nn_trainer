@@ -42,9 +42,6 @@ def load_modify_model(nb_of_classes,
     if freezing:
         for parameter in model.parameters():
             parameter.requires_grad = False
-        print("Only new classifier will be trained")
-    else:
-        print("\nAll layers will be trained")
 
     # Construct new classifier (requires_grad True by default for new layers)
     nb_of_filters = model.fc.in_features
@@ -76,26 +73,48 @@ def test(model, weights, images):
         image_preprocessed = tester.preprocess_image(image_path)
         class_predicted, accuracy = tester.predict(image_preprocessed)
         # Can save image with its class name or whatever
-        print("Image:", image_name, " Class:", class_predicted, " Acc:", accuracy)
+        print("Image: {}, Class: {}, Acc: {:.3f}".format(image_name, class_predicted,
+                                                        accuracy*100))
 
 
-def feature_extraction(image_dataset, data_loaders, dataset_sizes,
-                class_names, nb_of_epochs, save_path):
+def training(image_dataset,
+             data_loaders,
+             dataset_sizes,
+             class_names,
+             nb_of_epochs,
+             save_path,
+             training_type=0):
 
-    model = load_modify_model(nb_of_classes=(len(class_names)),
-                              freezing=True)
+    if training_type == 0:
+        # Only a new classifier will be trained. Other layers will be frozen
+        print("Only new classifier is getting trained")
+        model = load_modify_model(nb_of_classes=len(class_names),
+                                  freezing=True)
+
+        optimizer = optim.SGD(model.fc.parameters(),
+                              lr=0.001,
+                              momentum=0.9)
+        save_weights = os.path.join(save_path, "feature_extr.pth")
+
+    else:
+        # All layers will be trained
+        print("All layers are getting trained")
+        model = load_modify_model(nb_of_classes=len(class_names),
+                                  freezing=False)
+
+        optimizer = optim.SGD(model.parameters(),
+                              lr=0.001,
+                              momentum=0.9)
+        save_weights = os.path.join(save_path, "fine_tuned.pth")
+
     device = check_GPU()
     model.to(device)
 
     loss_function = nn.CrossEntropyLoss()
-    # In this case only unfrozen layers will be optimized
-    optimizer = optim.SGD(model.fc.parameters(),
-                          lr=0.001,
-                          momentum=0.9)
 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer,
-                                                step_size=7,
-                                                gamma=0.1)
+    scheduler = optim.lr_scheduler.StepLR(optimizer=optimizer,
+                                          step_size=7,
+                                          gamma=0.1)
 
     trainer = Trainer(model=model,
                       device=device)
@@ -123,70 +142,8 @@ def feature_extraction(image_dataset, data_loaders, dataset_sizes,
         visualiser.model_visualisation(fit_model, 10, data_loaders,
                                        device, class_names)
 
-    # Generate a name to save weights
-    weights_name = 'feature_extr.pth'
-    save_name = os.path.join(save_path, weights_name)
-
-    torch.save(fit_model.state_dict(), save_name)
-    print("\nWeights saved to:", save_name)
-
-
-def fine_tuning(image_dataset, data_loaders, dataset_sizes,
-                class_names, nb_of_epochs, save_path):
-
-    # Load and modify model's layers according to the problem getting solved
-    model = load_modify_model(nb_of_classes=len(class_names))
-
-    # Check if GPU's avaiable and move the model there
-    device = check_GPU()
-    model.to(device)
-
-    # Initialize loss function and optimizer
-    loss_function = nn.CrossEntropyLoss()
-
-    # Make sure that ALL parameters are being optimized (no frozen layers)
-    optimizer = optim.SGD(model.parameters(),
-                          lr=0.001,
-                          momentum=0.9)
-    # Initialize scheduler
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer,
-                                                step_size=7,
-                                                gamma=0.1)
-    # Initialize trainer
-    trainer = Trainer(model=model,
-                      device=device)
-    # Train the model
-    fit_model, accuracy, loss = trainer.train(epochs=nb_of_epochs,
-                                              image_dataset=image_dataset,
-                                              data_loaders=data_loaders,
-                                              dataset_sizes=dataset_sizes,
-                                              class_names=class_names,
-                                              criterion=loss_function,
-                                              optimizer=optimizer,
-                                              scheduler=scheduler)
-
-    # Test model's performance on all validation images with the best weights
-    # obtained during training
-    val_acc = Tester.validation(model=fit_model,
-                                data_loaders=data_loaders,
-                                device=device)
-    print("Accuracy on all validation dataset: {:.4f}".format(val_acc))
-
-    visualiser = Visualizer()
-    if args.draw_metrics:
-        visualiser.visualize_training_results(accuracy, loss)
-
-    if args.visualize:
-        visualiser.model_visualisation(fit_model, 10, data_loaders,
-                                       device, class_names)
-
-    # Generate a name to save weights
-    weights_name = 'feature_extr.pth'
-    save_name = os.path.join(save_path, weights_name)
-
-    # Save the model trained
-    torch.save(fit_model.state_dict(), save_name)
-    print("\nWeights saved to:", save_name)
+    torch.save(fit_model.state_dict(), save_weights)
+    print("\nWeights saved to:", save_weights)
 
 
 if __name__ == "__main__":
@@ -241,12 +198,16 @@ if __name__ == "__main__":
 
         if args.learning_type == 0:
             # Only a new classifier gets trained
-            feature_extraction(image_dataset, data_loaders, dataset_sizes,
-                               class_names, nb_of_epochs, save_weights)
+            training(image_dataset, data_loaders, dataset_sizes,
+                     class_names, nb_of_epochs, save_weights,
+                     training_type=0)
+
         elif args.learning_type == 1:
-            # All layers will be training
-            fine_tuning(image_dataset, data_loaders, dataset_sizes,
-                        class_names, nb_of_epochs, save_weights)
+            # All layers will be trained
+            training(image_dataset, data_loaders, dataset_sizes,
+                     class_names, nb_of_epochs, save_weights,
+                     training_type=1)
+
         else:
             print("ERROR: You need to specify training type")
             sys.exit()
