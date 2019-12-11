@@ -15,7 +15,7 @@ def parse_args():
 
     # Training
     parser.add_argument('--train', help="Path to folder with training and validation data ImageFolder format")
-    parser.add_argument('--fine_tuning', type=str, default=True,
+    parser.add_argument('--fine_tuning', type=int, default=1,
                         help="True - do not freeze any layers, False - train only classifier")
     parser.add_argument('--train_models', default=False,
                         help="Provide name of the model(s) which you'd like to train or train all")

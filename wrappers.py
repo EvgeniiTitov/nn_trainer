@@ -288,6 +288,8 @@ class GroupTrainer:
         if patience:
             self.early_stopping = True
             self.patience = patience
+        else:
+            self.early_stopping = False
 
         # Path to save weights for each model trained
         self.save_path = weights_savepath
@@ -308,6 +310,18 @@ class GroupTrainer:
         self.reshape_models()
         print("\nModels classifiers reshaped to match N of classes")
 
+    def collect_parameters_toupdate(self, model):
+
+        parameters_to_update = model.parameters()
+
+        if not self.fine_tuning:
+            parameters_to_update = list()
+
+            for name, parameter in model.named_parameters():
+                if parameter.requires_grad == True:
+                    parameters_to_update.append(parameter)
+
+        return parameters_to_update
 
     def train_models(self):
 
@@ -322,18 +336,18 @@ class GroupTrainer:
 
         for model, model_name in self.models:
 
-            optimizer = optim.SGD(model.parameters(),
+            model.to(self.device)
+            parameters_to_train = self.collect_parameters_toupdate(model)
+            optimizer = optim.SGD(parameters_to_train,
                                   lr=0.001,
                                   momentum=0.9)
-
             loss_function = nn.CrossEntropyLoss()
-
             scheduler = optim.lr_scheduler.StepLR(optimizer=optimizer,
                                                   step_size=7,
                                                   gamma=0.1)
 
+            # Inspection's input size is different. Generate new dataset if required
             is_inception = False
-            # Inspection's input size is different. Generate new dataset
             if model_name == "inception3":
 
                 dataset_manager = self.dataloader(data_path=self.training_data,
@@ -345,6 +359,7 @@ class GroupTrainer:
 
                 is_inception = True
 
+            # Train the model
             model_fit, performance_metrics = self.training(model=model,
                                                            model_name=model_name,
                                                            loss_function=loss_function,
@@ -475,10 +490,12 @@ class GroupTrainer:
         Takes the models provided and freezes their layers
         :return:
         """
-        for model in self.models:
+        for model, model_name in self.models:
 
             for parameter in model.parameters():
                 parameter.requires_grad = False
+
+        return
 
     def reshape_models(self):
         """
