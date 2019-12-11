@@ -1,4 +1,6 @@
-from wrappers import DatasetLoader, IndividualTrainer, Visualizer, Tester, GroupTrainer
+# python C:\Users\Evgenii\Desktop\Machine_Learning_NNs\work_related_models\models_training.py --train=D:\Desktop\Programming\ML_NN\DataSets\ants_vs_bees --epoch=5 --fine_tuning=0
+
+from wrappers import DatasetLoader, Visualizer, GroupTrainer
 from torchvision.models import resnet18, resnet34, alexnet, vgg16, vgg19,\
                                squeezenet, densenet
 from torchvision.models.inception import  inception_v3
@@ -29,9 +31,9 @@ def parse_args():
     parser.add_argument('--early_stopping', default=False,
                         help="Number of epochs without any loss reduction on val dataset - Early stopping")
 
-
+    # Results handling
     parser.add_argument('--draw_metrics', default=False, help="Visualise training metrics upon completion")
-    parser.add_argument('--visualize', default=False, help="TBA")
+    parser.add_argument('--visualise', default=False, help="TBA")
     parser.add_argument('--save_weights', help="Path to save weights after training",
                         default=r"D:\Desktop\Reserve_NNs\weights_configs\defect_detectors\try_2")
 
@@ -75,13 +77,10 @@ def training(models,
                         epochs=number_of_epoch
                           )
 
-
     models_performance = trainer.train_models()
 
-    print("\nModels performance:")
-    print(models_performance)
-
-
+    if args.visualise:
+        Visualizer.visualize_models_performance(models_performance)
 
 
 if __name__ == "__main__":
@@ -125,7 +124,6 @@ if __name__ == "__main__":
         (inception_v3(pretrained=args.pretrained), "inception3")
              ]
 
-    # NOW IT GIVES BOTH VGG for input VGG, same for ResNet
     if args.train_models:
         model_to_train = args.train_models
 

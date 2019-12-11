@@ -14,6 +14,32 @@ from collections import defaultdict
 class Visualizer:
 
     @staticmethod
+    def visualize_models_performance(models_performance):
+
+        labels = list()
+
+        for model_name, performance_metrics in models_performance.items():
+            # Metrics were returned in a tuple. Then appended to defaultdict(list), so [][]
+            accuracy = performance_metrics[0][0]
+            loss = performance_metrics[0][1]
+            early_stopping = performance_metrics[0][2]
+
+            plt.subplot(1, 2, 1)
+            plt.ylabel("Accuracy")
+            plt.xlabel("Epoch")
+            plt.plot(accuracy, linewidth=2)
+
+            plt.subplot(1, 2, 2)
+            plt.ylabel("Accuracy")
+            plt.xlabel("Epoch")
+            plt.plot(loss, linewidth=2)
+
+            labels.append(model_name)
+
+        plt.legend(labels)
+        plt.show()
+
+    @staticmethod
     def visualize_training_results(accuracy,
                                    loss):
 
@@ -372,6 +398,12 @@ class GroupTrainer:
             # Once model's been trained, save its performance metrics
             models_performance[model_name].append(performance_metrics)
 
+            # Save model
+            path_to_weights = os.path.join(self.save_path, model_name + '.pth')
+            torch.save(model_fit.state_dict(), path_to_weights)
+
+        print("All model's weights saved to:", self.save_path)
+
         return models_performance
 
     def training(self,
@@ -450,7 +482,7 @@ class GroupTrainer:
                                                            ))
                 # For visualization
                 if phase == "val":
-                    val_accuracy_history.append(epoch_accuracy)
+                    val_accuracy_history.append(epoch_accuracy.item())
                     val_loss_history.append(epoch_loss)
 
                 # To save the best performing weights
