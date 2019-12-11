@@ -1,11 +1,8 @@
-# python C:\Users\Evgenii\Desktop\Machine_Learning_NNs\work_related_models\models_training.py --train=D:\Desktop\Programming\ML_NN\DataSets\ants_vs_bees --epoch=5 --fine_tuning=0
+# python C:\Users\Evgenii\Desktop\Machine_Learning_NNs\work_related_models\main.py --train=D:\Desktop\Programming\ML_NN\DataSets\ants_vs_bees --epoch=5 --fine_tuning=0
 
 from wrappers import DatasetLoader, Visualizer, GroupTrainer
-from torchvision.models import resnet18, resnet34, alexnet, vgg16, vgg19,\
-                               squeezenet, densenet
+from torchvision.models import resnet18, resnet34, alexnet, vgg16, vgg19, squeezenet, densenet
 from torchvision.models.inception import  inception_v3
-import torch.nn as nn
-import torch.optim as optim
 import torch
 import sys
 import os
@@ -18,11 +15,11 @@ def parse_args():
     # Training
     parser.add_argument('--train', help="Path to folder with training and validation data ImageFolder format")
     parser.add_argument('--fine_tuning', type=int, default=1,
-                        help="True - do not freeze any layers, False - train only classifier")
+                        help="1 - do not freeze any layers, train all network. 0 - train only classifier")
     parser.add_argument('--train_models', default=False,
                         help="Provide name of the model(s) which you'd like to train or train all")
     parser.add_argument('--pretrained', default=True,
-                        help="Train models pretrained on ImageNet or not")
+                        help="Train models pretrained on the ImageNet ds or not")
 
     # Extra training arguments
     parser.add_argument('--gpu', default=True, help="Calculations done by GPU or CPU")
@@ -33,7 +30,7 @@ def parse_args():
 
     # Results handling
     parser.add_argument('--draw_metrics', default=False, help="Visualise training metrics upon completion")
-    parser.add_argument('--visualise', default=False, help="TBA")
+    parser.add_argument('--visualise', default=False, help="Keep track and draw validation loss and accuracy")
     parser.add_argument('--save_weights', help="Path to save weights after training",
                         default=r"D:\Desktop\Reserve_NNs\weights_configs\defect_detectors\try_2")
 
@@ -49,17 +46,6 @@ def training(models,
              batch_size,
              save_path,
              patience):
-
-    """
-
-    :param models:
-    :param fine_tuning:
-    :param training_data:
-    :param number_of_epoch:
-    :param batch_size:
-    :param save_path:
-    :return:
-    """
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -127,7 +113,7 @@ if __name__ == "__main__":
     if args.train_models:
         model_to_train = args.train_models
 
-        models = [(model, model_name) for model, model_name in models\
+        models = [(model, model_name) for model, model_name in models
                                 if model_name in model_to_train.lower().strip()]
 
     training(models=models,

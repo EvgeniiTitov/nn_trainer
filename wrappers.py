@@ -11,13 +11,13 @@ from PIL import Image
 import torch.nn as nn
 from collections import defaultdict
 
+
 class Visualizer:
 
     @staticmethod
     def visualize_models_performance(models_performance):
 
         labels = list()
-
         for model_name, performance_metrics in models_performance.items():
             # Metrics were returned in a tuple. Then appended to defaultdict(list), so [][]
             accuracy = performance_metrics[0][0]
@@ -94,7 +94,6 @@ class Visualizer:
 
         model.train_models(mode=was_training)
 
-
     def show(self, image, title=None):
 
         img = image.numpy().transpose((1, 2, 0))
@@ -105,7 +104,7 @@ class Visualizer:
 
         plt.imshow(img)
 
-        if not title is None:
+        if title is not None:
             plt.title(title)
 
         plt.show()
@@ -398,8 +397,11 @@ class GroupTrainer:
             # Once model's been trained, save its performance metrics
             models_performance[model_name].append(performance_metrics)
 
+            # Generate name to save parameters
+            acc = round(max(performance_metrics[0]), 4)
+            weights_name = model_name + '_' + str(acc) + '_ftuned_' + str(self.fine_tuning) + '.pth'
             # Save model
-            path_to_weights = os.path.join(self.save_path, model_name + '.pth')
+            path_to_weights = os.path.join(self.save_path, weights_name)
             torch.save(model_fit.state_dict(), path_to_weights)
 
         print("All model's weights saved to:", self.save_path)
