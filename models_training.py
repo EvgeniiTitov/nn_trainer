@@ -14,11 +14,11 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     # Training
-    parser.add_argument('--train', help="Path to folder with training and validation data")
+    parser.add_argument('--train', help="Path to folder with training and validation data ImageFolder format")
     parser.add_argument('--fine_tuning', type=str, default=True,
                         help="True - do not freeze any layers, False - train only classifier")
-    parser.add_argument('--train_specific', default=False,
-                        help="Provide name of the model which you'd like to train or train all")
+    parser.add_argument('--train_models', default=False,
+                        help="Provide name of the model(s) which you'd like to train or train all")
     parser.add_argument('--pretrained', default=True,
                         help="Train models pretrained on ImageNet or not")
 
@@ -26,10 +26,14 @@ def parse_args():
     parser.add_argument('--gpu', default=True, help="Calculations done by GPU or CPU")
     parser.add_argument('--epoch', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=8, help="Number of images per batch")
+    parser.add_argument('--early_stopping', default=False,
+                        help="Number of epochs without any loss reduction on val dataset - Early stopping")
+
+
     parser.add_argument('--draw_metrics', default=False, help="Visualise training metrics upon completion")
     parser.add_argument('--visualize', default=False, help="TBA")
     parser.add_argument('--save_weights', help="Path to save weights after training",
-                        default=r"D:\Desktop\Reserve_NNs\weights_configs\defect_detectors\try_1_resnet_cracks")
+                        default=r"D:\Desktop\Reserve_NNs\weights_configs\defect_detectors\try_2")
 
     arguments = parser.parse_args()
 
@@ -41,7 +45,8 @@ def training(models,
              training_data,
              number_of_epoch,
              batch_size,
-             save_path):
+             save_path,
+             patience):
 
     """
 
@@ -61,21 +66,20 @@ def training(models,
                         models=models,
                         path_to_training_data=training_data,
                         dataloader=DatasetLoader,
-                        fine_tuning=fine_tuning,
                         weights_savepath=save_path,
                         number_of_classes=2,
-                        device=device
+                        device=device,
+                        fine_tuning=fine_tuning,
+                        patience=patience,
+                        batch=batch_size,
+                        epochs=number_of_epoch
                           )
 
 
-    models_performance = trainer.train_models(
-                                    epochs=number_of_epoch,
-                                    batch=batch_size,
-                                    criterion=,
-                                    optimizer=,
-                                    scheduler=,
-                                      )
+    models_performance = trainer.train_models()
 
+    print("\nModels performance:")
+    print(models_performance)
 
 
 
@@ -83,8 +87,8 @@ def training(models,
 if __name__ == "__main__":
     args = parse_args()
 
-    if not all((args.train, args.training_type)):
-        print("ERROR: Incorrect input")
+    if not args.train:
+        print("ERROR: Path to training dataset wasn't provided!")
 
     if os.path.isdir(args.train):
         path_to_training_data = args.train
@@ -92,31 +96,46 @@ if __name__ == "__main__":
         print("ERROR: Provided folder is not a folder!")
         sys.exit()
 
-
-    number_of_epoch = int(args.epoch)
-    batch_size = int(args.batch_size)
+    number_of_epoch = args.epoch
+    batch_size = args.batch_size
     training_type = args.fine_tuning
-    save_path = args.save_weights
+
+    if args.early_stopping:
+        patience = int(args.early_stopping)
+    else:
+        patience = False
+
+    if not os.path.exists(args.save_weights):
+        try:
+            os.mkdir(args.save_weights)
+        except:
+            print("ERROR: Failed to create a folder to save weights."
+                  "Double check your input.")
+            sys.exit()
+        save_path = args.save_weights
+    else:
+        save_path = args.save_weights
 
     models = [
-        resnet18(pretrained=args.pretrained),
-        resnet34(pretrained=args.pretrained),
-        alexnet(pretrained=args.pretrained),
-        vgg16(pretrained=args.pretrained),
-        vgg19(pretrained=args.pretrained),
-        inception_v3(pretrained=args.pretrained)
-    ]
+        (resnet18(pretrained=args.pretrained), "resnet18"),
+        (resnet34(pretrained=args.pretrained), "resnet34"),
+        (alexnet(pretrained=args.pretrained), "alexnet"),
+        (vgg16(pretrained=args.pretrained), "vgg16"),
+        (vgg19(pretrained=args.pretrained), "vgg19"),
+        (inception_v3(pretrained=args.pretrained), "inception3")
+             ]
 
     # NOW IT GIVES BOTH VGG for input VGG, same for ResNet
-    if args.train_specific:
-        model_to_train = args.train_specific
+    if args.train_models:
+        model_to_train = args.train_models
 
-        models = [model for model in models if model.__class__.__name__.lower()==\
-                                                            model_to_train.lower().strip()]
+        models = [(model, model_name) for model, model_name in models\
+                                if model_name in model_to_train.lower().strip()]
 
     training(models=models,
              fine_tuning=training_type,
              training_data=path_to_training_data,
              number_of_epoch=number_of_epoch,
              save_path=save_path,
-             batch_size=batch_size)
+             batch_size=batch_size,
+             patience=patience)

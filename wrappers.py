@@ -2,6 +2,7 @@ import torch
 import copy
 import time
 from torchvision import datasets, transforms
+import torch.optim as optim
 import os
 import sys
 import matplotlib.pyplot as plt
@@ -271,69 +272,203 @@ class GroupTrainer:
                  weights_savepath,
                  number_of_classes,
                  device,
-                 fine_tuning=False):
+                 fine_tuning,
+                 patience,
+                 batch,
+                 epochs):
 
         # List of models to train
         self.models = models
+
         self.nb_of_classes = number_of_classes
         self.device = device
+        self.batch = batch
+        self.epochs = epochs
+
+        if patience:
+            self.early_stopping = True
+            self.patience = patience
+
         # Path to save weights for each model trained
         self.save_path = weights_savepath
         # Type of training
-        # CHECK ERROR HERE
-        self.freezing = fine_tuning
+        self.fine_tuning = fine_tuning
         # Path to the data to train on (ImageFolder type folder)
         self.training_data = path_to_training_data
         # Dataloader that will preprocess training data for us
         self.dataloader = dataloader
 
         # If feature extraction, freeze models layers
-        if self.freezing:
+        if not self.fine_tuning:
             self.freeze_layers()
             print("\nModels layers frozen")
 
-        # Reshape models last layer accoding to the number of classes
+        # Reshape models last layer according to the number of classes
         # getting predicted
         self.reshape_models()
         print("\nModels classifiers reshaped to match N of classes")
 
 
-    def train_models(self,
-                     batch,
-                     epochs,
-                     criterion,
-                     optimizer,
-                     scheduler):
+    def train_models(self):
 
         models_performance = defaultdict(list)
 
         # Load data set
         dataset_manager = self.dataloader(data_path=self.training_data,
-                                          batch_size=batch)
+                                          batch_size=self.batch)
 
         image_dataset, data_loaders, dataset_sizes, class_names = \
-            dataset_manager.generate_training_datasets()
+                                    dataset_manager.generate_training_datasets()
 
-        for model in self.models:
+        for model, model_name in self.models:
 
+            optimizer = optim.SGD(model.parameters(),
+                                  lr=0.001,
+                                  momentum=0.9)
+
+            loss_function = nn.CrossEntropyLoss()
+
+            scheduler = optim.lr_scheduler.StepLR(optimizer=optimizer,
+                                                  step_size=7,
+                                                  gamma=0.1)
+
+            is_inception = False
             # Inspection's input size is different. Generate new dataset
-            if model.__class__.__name__.lower() == "inception3":
+            if model_name == "inception3":
 
                 dataset_manager = self.dataloader(data_path=self.training_data,
                                                   input_size=299,
-                                                  batch_size=batch)
+                                                  batch_size=self.batch)
 
                 image_dataset, data_loaders, dataset_sizes, class_names = \
                                         dataset_manager.generate_training_datasets()
 
-            # CREATE A NEW METHOD THAT PERFORMANS ACTUAL MODEL TRAINING. DO NOT OVERLOAD THIS METHOD
+                is_inception = True
 
+            model_fit, performance_metrics = self.training(model=model,
+                                                           model_name=model_name,
+                                                           loss_function=loss_function,
+                                                           optimizer=optimizer,
+                                                           scheduler=scheduler,
+                                                           data_loaders=data_loaders,
+                                                           dataset_sizes=dataset_sizes,
+                                                           is_inception=is_inception)
 
+            # Once model's been trained, save its performance metrics
+            models_performance[model_name].append(performance_metrics)
 
+        return models_performance
 
+    def training(self,
+                 model,
+                 model_name,
+                 loss_function,
+                 optimizer,
+                 scheduler,
+                 data_loaders,
+                 dataset_sizes,
+                 is_inception):
 
+        start_time = time.time()
 
+        epochs_without_improvements = 0
+        early_stopped_on = (False, 0)
 
+        val_accuracy_history, val_loss_history = list(), list()
+        best_val_accuracy, best_val_loss = 0, float("inf")
+
+        best_model_weights = copy.deepcopy(model.state_dict())
+
+        print("\nTraining of {} commenced. Calculations on {}".format(
+                                                    model_name, self.device))
+
+        for epoch in range(self.epochs):
+
+            print("-" * 30)
+            print(f"{epoch + 1} / {self.epochs}")
+
+            for phase in ["train", "val"]:
+
+                if phase == "train":
+                    model.train()
+                else:
+                    model.eval()
+
+                running_loss, running_corrects = 0.0, 0
+
+                for batch, labels in data_loaders[phase]:
+                    batch = batch.to(self.device)
+                    labels = labels.to(self.device)
+
+                    optimizer.zero_grad()
+
+                    with torch.set_grad_enabled(phase == "train"):
+                        # For inseption the loss is the sum of the final output and the
+                        # auxiliary output. During testing consider only the final one
+                        if is_inception and phase == "train":
+                            # Run batch thru the net, get activations from both layers
+                            activations, aux_activations = model(batch)
+                            normal_loss = loss_function(activations, labels)
+                            aux_loss = loss_function(aux_activations, labels)
+                            loss = normal_loss + aux_loss
+                        else:
+                            activations = model(batch)
+                            loss = loss_function(activations, labels)
+
+                        _, class_predictions = torch.max(activations, dim=1)
+
+                        if phase == "train":
+                            loss.backward()
+                            optimizer.step()
+
+                    running_loss += loss.item() * batch.size(0)
+                    running_corrects += torch.sum(class_predictions == labels.data)
+
+                if phase == "train":
+                    scheduler.step()
+
+                epoch_loss = running_loss / dataset_sizes[phase]
+                epoch_accuracy = running_corrects.double() / dataset_sizes[phase]
+
+                print("{} Loss: {:.4f} Acc: {:.4f}".format(
+                                    phase, epoch_loss, epoch_accuracy
+                                                           ))
+                # For visualization
+                if phase == "val":
+                    val_accuracy_history.append(epoch_accuracy)
+                    val_loss_history.append(epoch_loss)
+
+                # To save the best performing weights
+                if phase == "val" and epoch_accuracy > best_val_accuracy:
+                    best_val_accuracy = epoch_accuracy
+                    best_model_weights = copy.deepcopy(model.state_dict())
+
+                # Early stopping criteria to not overfit
+                if self.early_stopping:
+                    if phase == "val" and epoch_loss < best_val_loss:
+                        best_val_loss = epoch_loss
+
+                    elif phase == "val" and epoch_loss > best_val_loss:
+                        if epochs_without_improvements > self.patience:
+                            print(f"\n{model_name}'s training early stopped. No loss "
+                                  f"improvements on val in {self.patience} epochs")
+                            early_stopped_on = (True, epoch)
+
+                            break
+                        else:
+                            epochs_without_improvements += 1
+            # Move to the next epoch unless early stopping and we're breaking out
+            else:
+                continue
+            # Break if nested loop got broken (early stopping)
+            break
+
+        training_time = time.time() - start_time
+        print("\nTraining completed in: {:.1f} seconds".format(training_time))
+
+        model.load_state_dict(best_model_weights)
+
+        return model, (val_accuracy_history, val_loss_history, early_stopped_on)
 
     def freeze_layers(self):
         """
@@ -351,7 +486,7 @@ class GroupTrainer:
         1k to the number of classes getting predicted
         :return:
         """
-        for model in self.models:
+        for model, model_name in self.models:
 
             if model.__class__.__name__ == "ResNet":
                 number_of_filters = model.fc.in_features
@@ -375,7 +510,7 @@ class GroupTrainer:
                 model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
 
             else:
-                print("Invalid model's name")
+                print("ERROR: Invalid model's name")
                 sys.exit()
 
 class Tester:
