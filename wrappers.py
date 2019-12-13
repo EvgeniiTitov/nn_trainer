@@ -30,7 +30,7 @@ class Visualizer:
             plt.plot(accuracy, linewidth=2)
 
             plt.subplot(1, 2, 2)
-            plt.ylabel("Accuracy")
+            plt.ylabel("Loss")
             plt.xlabel("Epoch")
             plt.plot(loss, linewidth=2)
 
@@ -300,7 +300,8 @@ class GroupTrainer:
                  fine_tuning,
                  patience,
                  batch,
-                 epochs):
+                 epochs,
+                 optimizer):
 
         # List of models to train
         self.models = models
@@ -309,6 +310,7 @@ class GroupTrainer:
         self.device = device
         self.batch = batch
         self.epochs = epochs
+        self.optimizer = optimizer
 
         if patience:
             self.early_stopping = True
@@ -363,9 +365,16 @@ class GroupTrainer:
 
             model.to(self.device)
             parameters_to_train = self.collect_parameters_toupdate(model)
-            optimizer = optim.SGD(parameters_to_train,
-                                  lr=0.001,
-                                  momentum=0.9)
+
+            if self.optimizer == "SGD":
+                optimizer = optim.SGD(parameters_to_train,
+                                      lr=0.001,
+                                      momentum=0.9)
+            else:
+                optimizer = optim.Adam(parameters_to_train,
+                                       lr=0.001,
+                                       betas=(0.9, 0.999))
+
             loss_function = nn.CrossEntropyLoss()
             scheduler = optim.lr_scheduler.StepLR(optimizer=optimizer,
                                                   step_size=7,
@@ -560,8 +569,19 @@ class GroupTrainer:
                 model.AuxLogits.fc = nn.Linear(number_of_filters_AuX, self.nb_of_classes)
                 model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
 
+            elif model.__class__.__name__ == "DenseNet":
+                number_of_filters = model.classifier.in_features
+                model.classifier = nn.Linear(number_of_filters, self.nb_of_classes)
+
+            elif model.__class__.__name__ == "SqueezeNet":
+                # Entirely different output structure. The output comes from 1x1 conv layer,
+                # which is the first layer of the classifier
+                model.classifier[1] = nn.Conv2d(512,
+                                                self.nb_of_classes,
+                                                kernel_size=(1,1),
+                                                stride=(1,1))
             else:
-                print("ERROR: Invalid model's name")
+                print("ERROR: Invalid model's name:", model)
                 sys.exit()
 
 class Tester:
