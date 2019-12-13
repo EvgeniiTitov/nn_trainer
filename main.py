@@ -110,19 +110,14 @@ if __name__ == "__main__":
     else:
         save_path = args.save_weights
 
-    # models = [
-    #     (models.resnet18(pretrained=args.pretrained), "resnet18"),
-    #     (models.resnet34(pretrained=args.pretrained), "resnet34"),
-    #     (models.resnet50(pretrained=args.pretrained), "resnet50"),
-    #     (models.alexnet(pretrained=args.pretrained), "alexnet"),
-    #     (models.vgg16(pretrained=args.pretrained), "vgg16"),
-    #     (models.vgg19(pretrained=args.pretrained), "vgg19"),
-    #     (models.inception_v3(pretrained=args.pretrained), "inception3"),
-    #     (models.densenet121(pretrained=args.pretrained), "densenet121"),
-    #     (models.squeezenet1_0(pretrained=args.pretrained), "squeezenet1_0")
-    #          ]
-
     models = [
+        (models.resnet18(pretrained=args.pretrained), "resnet18"),
+        (models.resnet34(pretrained=args.pretrained), "resnet34"),
+        (models.resnet50(pretrained=args.pretrained), "resnet50"),
+        (models.alexnet(pretrained=args.pretrained), "alexnet"),
+        (models.vgg16(pretrained=args.pretrained), "vgg16"),
+        (models.vgg19(pretrained=args.pretrained), "vgg19"),
+        (models.inception_v3(pretrained=args.pretrained), "inception3"),
         (models.densenet121(pretrained=args.pretrained), "densenet121"),
         (models.squeezenet1_0(pretrained=args.pretrained), "squeezenet1_0")
              ]

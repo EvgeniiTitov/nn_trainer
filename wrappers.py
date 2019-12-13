@@ -27,12 +27,12 @@ class Visualizer:
             plt.subplot(1, 2, 1)
             plt.ylabel("Accuracy")
             plt.xlabel("Epoch")
-            plt.plot(accuracy, linewidth=2)
+            plt.plot(accuracy, linewidth=3)
 
             plt.subplot(1, 2, 2)
             plt.ylabel("Loss")
             plt.xlabel("Epoch")
-            plt.plot(loss, linewidth=2)
+            plt.plot(loss, linewidth=3)
 
             labels.append(model_name)
 
@@ -350,6 +350,21 @@ class GroupTrainer:
 
         return parameters_to_update
 
+    @staticmethod
+    def print_out_training_results(training_results):
+
+        print("\nTRAINING RESULTS:")
+        for model, performance_result in training_results.items():
+            print(
+                'Model:{} Best acc: {:.4f} on {} epoch'.format(
+                                                        model,
+                                                        performance_result[0][2],
+                                                        performance_result[0][3]
+                                                               )
+                 )
+
+        return
+
     def train_models(self):
 
         models_performance = defaultdict(list)
@@ -408,12 +423,15 @@ class GroupTrainer:
 
             # Generate name to save parameters
             acc = round(max(performance_metrics[0]), 4)
-            weights_name = model_name + '_' + str(acc) + '_ftuned_' + str(self.fine_tuning) + '.pth'
+            weights_name = model_name + '_' + str(acc) + '_ftuned_' + str(self.fine_tuning) \
+                           + '_' + self.optimizer + '.pth'
             # Save model
             path_to_weights = os.path.join(self.save_path, weights_name)
             torch.save(model_fit.state_dict(), path_to_weights)
 
         print("All model's weights saved to:", self.save_path)
+
+        self.print_out_training_results(models_performance)
 
         return models_performance
 
@@ -428,12 +446,13 @@ class GroupTrainer:
                  is_inception):
 
         start_time = time.time()
-
+        # Early stopping condition
         epochs_without_improvements = 0
         early_stopped_on = (False, 0)
-
+        # Tracking training process
         val_accuracy_history, val_loss_history = list(), list()
         best_val_accuracy, best_val_loss = 0, float("inf")
+        best_accuracy_epoch = 0
 
         best_model_weights = copy.deepcopy(model.state_dict())
 
@@ -500,6 +519,7 @@ class GroupTrainer:
                 if phase == "val" and epoch_accuracy > best_val_accuracy:
                     best_val_accuracy = epoch_accuracy
                     best_model_weights = copy.deepcopy(model.state_dict())
+                    best_accuracy_epoch = epoch
 
                 # Early stopping criteria to not overfit
                 if self.early_stopping:
@@ -510,8 +530,8 @@ class GroupTrainer:
                         if epochs_without_improvements > self.patience:
                             print(f"\n{model_name}'s training early stopped. No loss "
                                   f"improvements on val in {self.patience} epochs")
-                            early_stopped_on = (True, epoch)
 
+                            early_stopped_on = (True, epoch)
                             break
                         else:
                             epochs_without_improvements += 1
@@ -526,7 +546,8 @@ class GroupTrainer:
 
         model.load_state_dict(best_model_weights)
 
-        return model, (val_accuracy_history, val_loss_history, early_stopped_on)
+        return model, (val_accuracy_history, val_loss_history,
+               best_val_accuracy.item(), best_accuracy_epoch, early_stopped_on)
 
     def freeze_layers(self):
         """
