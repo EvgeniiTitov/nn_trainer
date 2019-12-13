@@ -1,9 +1,7 @@
-# python C:\Users\Evgenii\Desktop\Machine_Learning_NNs\work_related_models\main.py --train=D:\Desktop\Programming\ML_NN\DataSets\ants_vs_bees --epoch=5 --fine_tuning=0
+# python \main.py --train=your_dataset\craks_dataset --epoch=25 --fine_tuning=1 --optimizer=adam --visualise=1
 
 from wrappers import DatasetLoader, Visualizer, GroupTrainer
 from torchvision import models
-#from torchvision.models import resnet18, resnet34, alexnet, vgg16, vgg19, squeezenet, densenet
-#from torchvision.models.inception import  inception_v3
 import torch
 import sys
 import os
@@ -27,6 +25,7 @@ def parse_args():
     parser.add_argument('--epoch', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=8, help="Number of images per batch")
     parser.add_argument('--optimizer', default="SGD", help="Choose optimizer SGD or ADAM (not case sensitive)")
+    parser.add_argument('--classes', type=int, default=2, help="Number of classes to classify")
     parser.add_argument('--early_stopping', default=False,
                         help="Number of epochs without any loss reduction on val dataset - Early stopping")
 
@@ -48,7 +47,8 @@ def training(models,
              batch_size,
              save_path,
              patience,
-             optimizer):
+             optimizer,
+             number_of_classes):
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -58,7 +58,7 @@ def training(models,
                         path_to_training_data=training_data,
                         dataloader=DatasetLoader,
                         weights_savepath=save_path,
-                        number_of_classes=2,
+                        number_of_classes=number_of_classes,
                         device=device,
                         fine_tuning=fine_tuning,
                         patience=patience,
@@ -88,6 +88,7 @@ if __name__ == "__main__":
     number_of_epoch = args.epoch
     batch_size = args.batch_size
     training_type = args.fine_tuning
+    number_of_classes = args.classes
 
     if args.early_stopping:
         patience = int(args.early_stopping)
@@ -122,11 +123,11 @@ if __name__ == "__main__":
         (models.squeezenet1_0(pretrained=args.pretrained), "squeezenet1_0")
              ]
 
-    if args.train_models:
-        model_to_train = args.train_models
-
-        models = [(model, model_name) for model, model_name in models
-                                if model_name in model_to_train.lower().strip()]
+    # if args.train_models:
+    #     model_to_train = args.train_models
+    #
+    #     models = [(model, model_name) for model, model_name in models
+    #                             if model_name in model_to_train]
 
     training(models=models,
              fine_tuning=training_type,
@@ -135,4 +136,5 @@ if __name__ == "__main__":
              save_path=save_path,
              batch_size=batch_size,
              patience=patience,
-             optimizer=optimizer)
+             optimizer=optimizer,
+             number_of_classes=number_of_classes)

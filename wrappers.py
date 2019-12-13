@@ -306,12 +306,14 @@ class GroupTrainer:
         # List of models to train
         self.models = models
 
+        # General training hyper parameters
         self.nb_of_classes = number_of_classes
         self.device = device
         self.batch = batch
         self.epochs = epochs
         self.optimizer = optimizer
 
+        # Early stopping condition
         if patience:
             self.early_stopping = True
             self.patience = patience
@@ -377,8 +379,9 @@ class GroupTrainer:
                                     dataset_manager.generate_training_datasets()
 
         for model, model_name in self.models:
-
+            # Move model to GPU
             model.to(self.device)
+
             parameters_to_train = self.collect_parameters_toupdate(model)
 
             if self.optimizer == "SGD":
