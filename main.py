@@ -17,8 +17,8 @@ def parse_args():
                         help="1 - do not freeze any layers, train all network. 0 - train only classifier")
     parser.add_argument('--train_models', nargs='+', default=False,
                         help="Provide name of the model(s) which you'd like to train or train all")
-    parser.add_argument('--pretrained', type=bool, default=True,
-                        help="Train models pretrained on the ImageNet ds or not")
+    parser.add_argument('--pretrained', type=int, default=1,
+                        help="Train models pretrained on the ImageNet DS or not")
 
     # Extra train arguments
     parser.add_argument('--gpu', default=True, help="Calculations done by GPU or CPU")
@@ -127,6 +127,13 @@ if __name__ == "__main__":
     else:
         save_path = args.save_weights
 
+    if args.pretrained == 1:
+        pretrained = True
+    else:
+        pretrained = False
+        # If model is not pretrained, do not do fine tuning. Train all layers
+        training_type = 0
+
     models_to_train = [
         "resnet18", "resnet34", "resnet50",
         "alexnet", "inception3", "densenet121",
@@ -147,7 +154,7 @@ if __name__ == "__main__":
     else:
         print("Early stopping after:", patience)
     print("Optimizer:", optimizer)
-    print("Pretrained:", args.pretrained)
+    print("Pretrained:", pretrained)
     print("Augmentation:", args.augmentation)
 
     input_confirmation = input("\nCONFIRMED? Y/N: ")
@@ -162,7 +169,7 @@ if __name__ == "__main__":
               patience=patience,
               optimizer=optimizer,
               number_of_classes=number_of_classes,
-              pretrained=args.pretrained,
+              pretrained=pretrained,
               augmentation=args.augmentation)
     else:
         print("Try again")

@@ -145,7 +145,7 @@ class GroupTrainer:
                 raise NameError(f"Invalid name of the model: {model_name}")
 
             # Feature extraction? freeze model's layers
-            if not self.fine_tuning:
+            if self.fine_tuning:
                 model = self.freeze_layers(model)
                 print(f"{model_name}'s layers frozen")
 
