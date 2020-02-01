@@ -2,7 +2,6 @@
 
 from utils import DatasetLoader, Visualizer
 from trainer import GroupTrainer
-from torchvision import models
 import torch
 import sys
 import os
@@ -29,6 +28,8 @@ def parse_args():
     parser.add_argument('--classes', type=int, default=2, help="Number of classes to classify")
     parser.add_argument('--early_stopping', type=int, default=0,
                         help="Number of epochs without any loss reduction on val dataset - Early stopping")
+    parser.add_argument('--augmentation', type=int, default=0,
+                        help="Augmentation of training data: flips, rotation, colour jitter")
 
     # Results handling
     parser.add_argument('--draw_metrics', type=int, default=0, help="Visualise train metrics upon completion")
@@ -51,7 +52,8 @@ def train(
         patience,
         optimizer,
         number_of_classes,
-        pretrained
+        pretrained,
+        augmentation
 ):
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -69,13 +71,14 @@ def train(
         batch=batch_size,
         epochs=number_of_epoch,
         optimizer=optimizer,
-        pretrained=pretrained
+        pretrained=pretrained,
+        augmentation=augmentation
     )
 
-    models_performance = trainer.train_models()
+    training_results = trainer.train_models()
 
     if args.visualise:
-        Visualizer.visualize_models_performance(models_performance)
+        Visualizer.visualize_models_performance(training_results)
 
 
 if __name__ == "__main__":
@@ -136,13 +139,33 @@ if __name__ == "__main__":
     #     models_to_train = [(model, model_name) for model, model_name in models
     #                             if model_name in model_to_train]
 
-    train(models=models_to_train,
-          fine_tuning=training_type,
-          training_data=path_to_training_data,
-          number_of_epoch=number_of_epoch,
-          save_path=save_path,
-          batch_size=batch_size,
-          patience=patience,
-          optimizer=optimizer,
-          number_of_classes=number_of_classes,
-          pretrained=args.pretrained)
+    print("\nTraining parameters:")
+    print("Number of classes:", number_of_classes)
+    print("Number of epoch:", number_of_epoch)
+    print("Fine tuning:", training_type)
+    print("Batch size:", batch_size)
+    if patience == 0:
+        print("No early stopping")
+    else:
+        print("Early stopping after:", patience)
+    print("Optimizer:", optimizer)
+    print("Pretrained:", args.pretrained)
+    print("Augmentation:", args.augmentation)
+
+    input_confirmation = input("CONFIRMED? Y/N: ")
+
+    if input_confirmation.upper().strip() == "Y":
+        train(models=models_to_train,
+              fine_tuning=training_type,
+              training_data=path_to_training_data,
+              number_of_epoch=number_of_epoch,
+              save_path=save_path,
+              batch_size=batch_size,
+              patience=patience,
+              optimizer=optimizer,
+              number_of_classes=number_of_classes,
+              pretrained=args.pretrained,
+              augmentation=args.augmentation)
+    else:
+        print("Try again")
+        sys.exit()

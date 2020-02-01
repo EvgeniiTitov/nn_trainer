@@ -8,6 +8,7 @@ import torch.nn as nn
 from collections import defaultdict
 from tqdm import tqdm
 from torchvision import models
+from pynvml import *
 
 
 class GroupTrainer:
@@ -25,7 +26,8 @@ class GroupTrainer:
             batch,
             epochs,
             optimizer,
-            pretrained
+            pretrained,
+            augmentation
     ):
 
         # List of names of models to train
@@ -54,28 +56,27 @@ class GroupTrainer:
         self.training_data = path_to_training_data
         # Dataloader that will preprocess train data for us
         self.dataloader = dataloader
-
-
-        # If feature extraction, freeze models layers
-        if not self.fine_tuning:
-            self.freeze_layers()
-            print("\nModels layers frozen")
-
-        # Reshape models last layer according to the number of classes
-        # getting predicted
-        self.reshape_models()
-        print("\nModels classifiers reshaped to match N of classes")
+        self.augmentation = augmentation
 
     def collect_parameters_toupdate(self, model):
-
+        """
+        Collects model's parameters with requires_grad = True
+        :param model:
+        :return:
+        """
         parameters_to_update = model.parameters()
 
         if not self.fine_tuning:
+            # If feature extraction - last dense layer only
             parameters_to_update = list()
 
             for name, parameter in model.named_parameters():
                 if parameter.requires_grad == True:
                     parameters_to_update.append(parameter)
+        else:
+            # Fine tuning - collect all parameters
+            for name, parameter in model.named_parameters():
+                parameters_to_update.append(parameter)
 
         return parameters_to_update
 
@@ -98,33 +99,80 @@ class GroupTrainer:
 
         models_performance = defaultdict(list)
 
-        # # Load data set
-        # dataset_manager = self.dataloader(data_path=self.training_data,
-        #                                   batch_size=self.batch)
-        #
-        # image_dataset, data_loaders, dataset_sizes, class_names = \
-        #                             dataset_manager.generate_training_datasets()
+        # Load data set to train the models
+        dataset_manager = self.dataloader(data_path=self.training_data,
+                                          augmentation=self.augmentation,
+                                          batch_size=self.batch)
 
+        image_dataset, data_loaders, dataset_sizes, class_names = \
+                                    dataset_manager.generate_training_datasets()
 
-        # TO DO: Why did you comment DS loading above? Uncomment. It makes sense to load it
-        # only once. If a model happens to be inception, load another one.
-        for model, model_name in self.models:
+        # Initialize GPU usage tracking
+        nvmlInit()
+        handle = nvmlDeviceGetHandleByIndex(0)
+
+        # Main training loop
+        for model_name in self.models:
+
+            # Print GPU usage stats
+            usage = nvmlDeviceGetMemoryInfo(handle)
+            print("\nGPU STATS")
+            print("Total memory:", usage.total)
+            print("Free memory:", usage.free)
+            print("Used memory:", usage.used)
+
+            # Initialize the model
+            if model_name == "resnet18":
+                model = models.resnet18(pretrained=self.pretrained)
+            elif model_name == "resnet34":
+                model = models.resnet34(pretrained=self.pretrained)
+            elif model_name == "resnet50":
+                model = models.resnet50(pretrained=self.pretrained)
+            elif model_name == "alexnet":
+                model = models.alexnet(pretrained=self.pretrained)
+            elif model_name == "inception3":
+                model = models.inception_v3(pretrained=self.pretrained)
+            elif model_name == "densenet121":
+                model = models.densenet121(pretrained=self.pretrained)
+            elif model_name == "squeezenet1_0":
+                model = models.squeezenet1_0(pretrained=self.pretrained)
+            elif model_name == "vgg16":
+                model = models.vgg16(pretrained=self.pretrained)
+            elif model_name == "vgg19":
+                model = models.vgg19(pretrained=self.pretrained)
+            else:
+                raise NameError(f"Invalid name of the model: {model_name}")
+
+            # Feature extraction? freeze model's layers
+            if not self.fine_tuning:
+                model = self.freeze_layers(model)
+                print(f"{model_name}'s layers frozen")
+
+            # Reshape model depending on the number of classes getting classified
+            if self.nb_of_classes != 1000:
+                model = self.reshape_model(model)
+                print(f"{model_name}'s reshaped")
 
             # Move model to GPU
             model.to(self.device)
 
+            # Collect model's parameters that need to be optimized during training
             parameters_to_train = self.collect_parameters_toupdate(model)
 
+            # Initialize optimizer to perform gradient descend
             if self.optimizer == "SGD":
-                optimizer_ = optim.SGD(parameters_to_train,
-                                      lr=0.001,
-                                      momentum=0.9)
-            else:
-                optimizer_ = optim.Adam(parameters_to_train,
+                optimizer_ = optim.SGD(params=parameters_to_train,
                                        lr=0.001,
-                                       betas=(0.9, 0.999))
+                                       momentum=0.9)
+            else:
+                optimizer_ = optim.Adam(params=parameters_to_train,
+                                        lr=0.001,
+                                        betas=(0.9, 0.999))
 
+            # Initialize loss function to calculate error
             loss_function = nn.CrossEntropyLoss()
+
+            # Initialize a schedule to degrade the learning rate further into training
             scheduler = optim.lr_scheduler.StepLR(optimizer=optimizer_,
                                                   step_size=8,
                                                   gamma=0.1)
@@ -134,6 +182,7 @@ class GroupTrainer:
             if model_name == "inception3":
 
                 dataset_manager = self.dataloader(data_path=self.training_data,
+                                                  augmentation=self.augmentation,
                                                   input_size=299,
                                                   batch_size=self.batch)
 
@@ -141,14 +190,6 @@ class GroupTrainer:
                                         dataset_manager.generate_training_datasets()
 
                 is_inception = True
-
-            else:
-                # Load data set
-                dataset_manager = self.dataloader(data_path=self.training_data,
-                                                  batch_size=self.batch)
-
-                image_dataset, data_loaders, dataset_sizes, class_names = \
-                                        dataset_manager.generate_training_datasets()
 
             # Trying to catch out of error error
             try:
@@ -162,23 +203,25 @@ class GroupTrainer:
                                                                dataset_sizes=dataset_sizes,
                                                                is_inception=is_inception)
             except:
-                print("FAILED ON:", model_name)
+                print("\nTRAINING FAILED ON:", model_name)
                 continue
 
-            # Once model's been trained, save its performance metrics
+            # Keep track of model's training results
             models_performance[model_name].append(performance_metrics)
 
             # Generate name to save parameters
             acc = round(max(performance_metrics[0]), 4)
             weights_name = model_name + '_' + str(acc) + '_ftuned_' + str(self.fine_tuning) \
                            + '_' + self.optimizer + '.pth'
+
             # Save model
             path_to_weights = os.path.join(self.save_path, weights_name)
             torch.save(model_fit.state_dict(), path_to_weights)
 
             # To prevent memory leaks and play it safe
-            del optimizer_, loss_function, model_fit, model, scheduler, parameters_to_train, performance_metrics
+            del model, model_fit, performance_metrics, parameters_to_train,
 
+            # Empty any cache stored by torch for quick allocation without asking OS for space
             torch.cuda.empty_cache()
 
         print("All model's weights saved to:", self.save_path)
@@ -187,15 +230,17 @@ class GroupTrainer:
 
         return models_performance
 
-    def train(self,
-                 model,
-                 model_name,
-                 loss_function,
-                 optimizer,
-                 scheduler,
-                 data_loaders,
-                 dataset_sizes,
-                 is_inception):
+    def train(
+            self,
+            model,
+            model_name,
+            loss_function,
+            optimizer,
+            scheduler,
+            data_loaders,
+            dataset_sizes,
+            is_inception
+    ):
 
         start_time = time.time()
 
@@ -208,6 +253,7 @@ class GroupTrainer:
         best_val_accuracy, best_val_loss = 0, float("inf")
         best_accuracy_epoch = 0
 
+
         best_model_weights = copy.deepcopy(model.state_dict())
 
         print("\nTraining of {} commenced. Calculations on {}".format(
@@ -218,11 +264,13 @@ class GroupTrainer:
             print("-" * 30)
             print(f"{epoch + 1} / {self.epochs}")
 
+            # Each training epoch consists of training and validation phase
             for phase in ["train", "val"]:
 
                 if phase == "train":
                     model.train()
                 else:
+                    # No gradients are calculated, no backprop
                     model.eval()
 
                 running_loss, running_corrects = 0.0, 0
@@ -233,6 +281,8 @@ class GroupTrainer:
 
                     optimizer.zero_grad()
 
+                    # Gradients and backprop with subsequent parameters changes are only
+                    # allowed during the training phase.
                     with torch.set_grad_enabled(phase == "train"):
                         # For inseption the loss is the sum of the final output and the
                         # auxiliary output. During testing consider only the final one
@@ -241,13 +291,14 @@ class GroupTrainer:
                             activations, aux_activations = model(batch)
                             normal_loss = loss_function(activations, labels)
                             aux_loss = loss_function(aux_activations, labels)
-                            loss = normal_loss + aux_loss
+                            loss = normal_loss + (0.4 * aux_loss)
                         else:
                             activations = model(batch)
                             loss = loss_function(activations, labels)
 
                         _, class_predictions = torch.max(activations, dim=1)
 
+                        # Run backprop and optimize values if in training
                         if phase == "train":
                             loss.backward()
                             optimizer.step()
@@ -255,8 +306,9 @@ class GroupTrainer:
                     running_loss += loss.item() * batch.size(0)
                     running_corrects += torch.sum(class_predictions == labels.data)
 
-                if phase == "train":
-                    scheduler.step()
+                # TO CONFIRM
+                # if phase == "train":
+                #     scheduler.step()
 
                 epoch_loss = running_loss / dataset_sizes[phase]
                 epoch_accuracy = running_corrects.double() / dataset_sizes[phase]
@@ -267,15 +319,15 @@ class GroupTrainer:
                 # For visualization
                 if phase == "val":
                     val_accuracy_history.append(epoch_accuracy.item())
-                    val_loss_history.append(epoch_loss)
+                    val_loss_history.append(epoch_loss.item())
 
                 # To save the best performing weights
                 if phase == "val" and epoch_accuracy > best_val_accuracy:
-                    best_val_accuracy = epoch_accuracy
+                    best_val_accuracy = epoch_accuracy.item()
                     best_model_weights = copy.deepcopy(model.state_dict())
                     best_accuracy_epoch = epoch
 
-                # Early stopping criteria to not overfit
+                # Early stopping criteria to prevent overfitting
                 if self.early_stopping:
                     if phase == "val" and epoch_loss < best_val_loss:
                         best_val_loss = epoch_loss
@@ -298,66 +350,73 @@ class GroupTrainer:
         training_time = time.time() - start_time
         print("\nTraining completed in: {:.1f} seconds".format(training_time))
 
+        # Load best model weights
         model.load_state_dict(best_model_weights)
 
         return model, (val_accuracy_history, val_loss_history,
-               best_val_accuracy.item(), best_accuracy_epoch, early_stopped_on)
+               best_val_accuracy, best_accuracy_epoch, early_stopped_on)
 
-    def freeze_layers(self):
+    def freeze_layers(self, model):
         """
-        Takes the models provided and freezes their layers
-        :return:
+        Receives a model and freezes its layers - gradient wont
+        propagate along the layers
+        :return: model modified
         """
-        for model, model_name in self.models:
 
-            for parameter in model.parameters():
-                parameter.requires_grad = False
+        for parameter in model.parameters():
+            parameter.requires_grad = False
 
-        return
+        return model
 
-    def reshape_models(self):
+    def reshape_model(self, model):
         """
-        Takes the models provided and changes number of outputs from
+        Receives a model and changes the number of outputs from
         1k to the number of classes getting predicted
-        :return:
+        :return: reshaped model
         """
-        for model, model_name in self.models:
 
-            if model.__class__.__name__ == "ResNet":
-                number_of_filters = model.fc.in_features
-                model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
+        if model.__class__.__name__ == "ResNet":
+            number_of_filters = model.fc.in_features
+            model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
+            print("Resnet successfully reshaped")
 
-            elif model.__class__.__name__ == "AlexNet":
-                # 6th Dense layer's input size: 4096
-                number_of_filters = model.classifier[6].in_features
-                model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
+        elif model.__class__.__name__ == "AlexNet":
+            # 6th Dense layer's input size: 4096
+            number_of_filters = model.classifier[6].in_features
+            model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
+            print("AlexNet successfully reshaped")
 
-            elif model.__class__.__name__ == "VGG":
-                # For both VGGs 16-19 classifiers are the same
-                number_of_filters = model.classifier[6].in_features
-                model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
+        elif model.__class__.__name__ == "VGG":
+            # For both VGGs 16-19 classifiers are the same
+            number_of_filters = model.classifier[6].in_features
+            model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
+            print("VGG successfully reshaped")
 
-            elif model.__class__.__name__ == "Inception3":
-                number_of_filters_AuX = model.AuxLogits.fc.in_features
-                number_of_filters = model.fc.in_features
+        elif model.__class__.__name__ == "Inception3":
+            # Expects (299, 299) images unlike the rest of the networks work with 224, 224
+            number_of_filters_AuX = model.AuxLogits.fc.in_features
+            number_of_filters = model.fc.in_features
 
-                model.AuxLogits.fc = nn.Linear(number_of_filters_AuX, self.nb_of_classes)
-                model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
+            model.AuxLogits.fc = nn.Linear(number_of_filters_AuX, self.nb_of_classes)
+            model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
+            print("Inception successfully reshaped")
 
-            elif model.__class__.__name__ == "DenseNet":
-                number_of_filters = model.classifier.in_features
-                model.classifier = nn.Linear(number_of_filters, self.nb_of_classes)
+        elif model.__class__.__name__ == "DenseNet":
+            number_of_filters = model.classifier.in_features
+            model.classifier = nn.Linear(number_of_filters, self.nb_of_classes)
+            print("DenseNet successfully reshaped")
 
-            elif model.__class__.__name__ == "SqueezeNet":
-                # Entirely different output structure. The output comes from 1x1 conv layer,
-                # which is the first layer of the classifier
-                model.classifier[1] = nn.Conv2d(512,
-                                                self.nb_of_classes,
-                                                kernel_size=(1,1),
-                                                stride=(1,1))
-            else:
-                print("ERROR: Invalid model's name:", model)
-                sys.exit()
+        elif model.__class__.__name__ == "SqueezeNet":
+            # Entirely different output structure. The output comes from 1x1 conv layer,
+            # which is the first layer of the classifier
+            model.classifier[1] = nn.Conv2d(512,
+                                            self.nb_of_classes,
+                                            kernel_size=(1, 1),
+                                            stride=(1, 1))
+            model.num_classes = self.nb_of_classes
+            print("SqueezeNet successfully reshaped")
+
+        return model
 
 
 class IndividualTrainer:
