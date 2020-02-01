@@ -15,7 +15,7 @@ def parse_args():
     parser.add_argument('--train', help="Path to folder with train and validation data ImageFolder format")
     parser.add_argument('--fine_tuning', type=int, default=0,
                         help="1 - do not freeze any layers, train all network. 0 - train only classifier")
-    parser.add_argument('--train_models', type=str, default=False,
+    parser.add_argument('--train_models', nargs='+', default=False,
                         help="Provide name of the model(s) which you'd like to train or train all")
     parser.add_argument('--pretrained', type=bool, default=True,
                         help="Train models pretrained on the ImageNet ds or not")
@@ -33,7 +33,7 @@ def parse_args():
 
     # Results handling
     parser.add_argument('--draw_metrics', type=int, default=0, help="Visualise train metrics upon completion")
-    parser.add_argument('--visualise', type=int, default=0, help="Keep track and draw validation loss and accuracy")
+    parser.add_argument('--visualise', type=int, default=1, help="Keep track and draw validation loss and accuracy")
     parser.add_argument('--save_weights', help="Path to save weights after train",
                         default=r"D:\Desktop\system_output\Cracks_Training_Results")
 
@@ -133,13 +133,11 @@ if __name__ == "__main__":
         "squeezenet1_0", "vgg16", "vgg19"
     ]
 
-    # if args.train_models:
-    #     model_to_train = args.train_models
-    #
-    #     models_to_train = [(model, model_name) for model, model_name in models
-    #                             if model_name in model_to_train]
+    if args.train_models:
+        models_to_train = [model for model in args.train_models]
 
-    print("\nTraining parameters:")
+    print("\nTRAINING PARAMETERS:")
+    print("Models to train:", ' '.join(models_to_train))
     print("Number of classes:", number_of_classes)
     print("Number of epoch:", number_of_epoch)
     print("Fine tuning:", training_type)
@@ -152,7 +150,7 @@ if __name__ == "__main__":
     print("Pretrained:", args.pretrained)
     print("Augmentation:", args.augmentation)
 
-    input_confirmation = input("CONFIRMED? Y/N: ")
+    input_confirmation = input("\nCONFIRMED? Y/N: ")
 
     if input_confirmation.upper().strip() == "Y":
         train(models=models_to_train,

@@ -33,13 +33,14 @@ class DatasetLoader:
         if self.perform_aug:
             data_transforms = {
                 "train": transforms.Compose([
-                    transforms.Resize(self.input_size),
+                    transforms.CenterCrop(self.input_size),
                     transforms.RandomRotation(degrees=15),
                     transforms.ColorJitter(),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
                 "val": transforms.Compose([
                     transforms.Resize(self.input_size),  # 256 used to be
+                    transforms.CenterCrop(self.input_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
                               }
@@ -47,11 +48,12 @@ class DatasetLoader:
         else:
             data_transforms = {
                 "train": transforms.Compose([
-                    transforms.Resize(self.input_size),
+                    transforms.CenterCrop(self.input_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
                 "val": transforms.Compose([
                     transforms.Resize(self.input_size),  # 256 used to be
+                    transforms.CenterCrop(self.input_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
             }

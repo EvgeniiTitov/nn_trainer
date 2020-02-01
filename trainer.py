@@ -116,7 +116,8 @@ class GroupTrainer:
 
             # Print GPU usage stats
             usage = nvmlDeviceGetMemoryInfo(handle)
-            print("\nGPU STATS")
+            usage_rate = nvmlDeviceGetUtilizationRates(handle)
+            print(f"\nGPU: {usage_rate.gpu}, GPU-memory: {usage_rate.memory}%")
             print("Total memory:", usage.total)
             print("Free memory:", usage.free)
             print("Used memory:", usage.used)
@@ -191,20 +192,14 @@ class GroupTrainer:
 
                 is_inception = True
 
-            # Trying to catch out of error error
-            try:
-                # Train the model
-                model_fit, performance_metrics = self.training(model=model,
-                                                               model_name=model_name,
-                                                               loss_function=loss_function,
-                                                               optimizer=optimizer_,
-                                                               scheduler=scheduler,
-                                                               data_loaders=data_loaders,
-                                                               dataset_sizes=dataset_sizes,
-                                                               is_inception=is_inception)
-            except:
-                print("\nTRAINING FAILED ON:", model_name)
-                continue
+            model_fit, performance_metrics = self.train(model=model,
+                                                        model_name=model_name,
+                                                        loss_function=loss_function,
+                                                        optimizer=optimizer_,
+                                                        scheduler=scheduler,
+                                                        data_loaders=data_loaders,
+                                                        dataset_sizes=dataset_sizes,
+                                                        is_inception=is_inception)
 
             # Keep track of model's training results
             models_performance[model_name].append(performance_metrics)
@@ -319,7 +314,7 @@ class GroupTrainer:
                 # For visualization
                 if phase == "val":
                     val_accuracy_history.append(epoch_accuracy.item())
-                    val_loss_history.append(epoch_loss.item())
+                    val_loss_history.append(epoch_loss)
 
                 # To save the best performing weights
                 if phase == "val" and epoch_accuracy > best_val_accuracy:
@@ -378,19 +373,16 @@ class GroupTrainer:
         if model.__class__.__name__ == "ResNet":
             number_of_filters = model.fc.in_features
             model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
-            print("Resnet successfully reshaped")
 
         elif model.__class__.__name__ == "AlexNet":
             # 6th Dense layer's input size: 4096
             number_of_filters = model.classifier[6].in_features
             model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
-            print("AlexNet successfully reshaped")
 
         elif model.__class__.__name__ == "VGG":
             # For both VGGs 16-19 classifiers are the same
             number_of_filters = model.classifier[6].in_features
             model.classifier[6] = nn.Linear(number_of_filters, self.nb_of_classes)
-            print("VGG successfully reshaped")
 
         elif model.__class__.__name__ == "Inception3":
             # Expects (299, 299) images unlike the rest of the networks work with 224, 224
@@ -399,12 +391,10 @@ class GroupTrainer:
 
             model.AuxLogits.fc = nn.Linear(number_of_filters_AuX, self.nb_of_classes)
             model.fc = nn.Linear(number_of_filters, self.nb_of_classes)
-            print("Inception successfully reshaped")
 
         elif model.__class__.__name__ == "DenseNet":
             number_of_filters = model.classifier.in_features
             model.classifier = nn.Linear(number_of_filters, self.nb_of_classes)
-            print("DenseNet successfully reshaped")
 
         elif model.__class__.__name__ == "SqueezeNet":
             # Entirely different output structure. The output comes from 1x1 conv layer,
@@ -414,7 +404,6 @@ class GroupTrainer:
                                             kernel_size=(1, 1),
                                             stride=(1, 1))
             model.num_classes = self.nb_of_classes
-            print("SqueezeNet successfully reshaped")
 
         return model
 
