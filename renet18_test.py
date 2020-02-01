@@ -1,4 +1,4 @@
-from wrappers import DatasetLoader, IndividualTrainer, Visualizer, Tester
+from trainer import DatasetLoader, IndividualTrainer, Visualizer, Tester
 from torchvision import models
 import torch.nn as nn
 import torch.optim as optim
@@ -16,16 +16,16 @@ def parse_args():
     parser.add_argument('--weights', help="Path to model's parameters to test")
 
     # Training
-    parser.add_argument('--train', help="Path to folder with training and validation data")
+    parser.add_argument('--train', help="Path to folder with train and validation data")
     parser.add_argument('--learning_type', type=int,
                         help="0 - feature extraction, 1 - fine tuning")
 
-    # Extra training arguments
+    # Extra train arguments
     parser.add_argument('--gpu', default=True, help="Calculations done by GPU or CPU")
     parser.add_argument('--epoch', type=int, default=15)
-    parser.add_argument('--draw_metrics', default=False, help="Visualise training metrics upon completion")
+    parser.add_argument('--draw_metrics', default=False, help="Visualise train metrics upon completion")
     parser.add_argument('--visualize', default=False, help="TBA")
-    parser.add_argument('--save_weights', help="Path to save weights after training",
+    parser.add_argument('--save_weights', help="Path to save weights after train",
                         default=r"D:\Desktop\Reserve_NNs\weights_configs\defect_detectors\try_1_resnet_cracks")
 
     arguments = parser.parse_args()
@@ -209,5 +209,5 @@ if __name__ == "__main__":
                      training_type=1)
 
         else:
-            print("ERROR: You need to specify training type")
+            print("ERROR: You need to specify train type")
             sys.exit()
