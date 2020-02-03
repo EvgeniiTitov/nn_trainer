@@ -73,10 +73,6 @@ class GroupTrainer:
             for name, parameter in model.named_parameters():
                 if parameter.requires_grad == True:
                     parameters_to_update.append(parameter)
-        else:
-            # Fine tuning - collect all parameters
-            for name, parameter in model.named_parameters():
-                parameters_to_update.append(parameter)
 
         return parameters_to_update
 
@@ -145,7 +141,8 @@ class GroupTrainer:
                 raise NameError(f"Invalid name of the model: {model_name}")
 
             # Feature extraction? freeze model's layers
-            if self.fine_tuning:
+            # HERE IS ERROR MATE! If you fine tune, you dont freeze layers
+            if not self.fine_tuning:
                 model = self.freeze_layers(model)
                 print(f"{model_name}'s layers frozen")
 

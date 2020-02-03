@@ -1,4 +1,6 @@
-# python \main.py --train=your_dataset\craks_dataset --epoch=25 --fine_tuning=1 --optimizer=adam --visualise=1
+# python C:\Users\Evgenii\Desktop\Machine_Learning_NNs\work_related_models\main.py
+# --train=D:\Desktop\Programming\ML_NN\DataSets\Cats_Dogs_Smaller\cats_vs_dogs
+# --pretrained=0 --fine_tuning=1 --epoch=40 --augmentation=1 --train_models resnet18 --visualise=1
 
 from utils import DatasetLoader, Visualizer
 from trainer import GroupTrainer
@@ -97,7 +99,7 @@ if __name__ == "__main__":
     assert number_of_epoch > 1, "ERROR: Wrong number of epoch"
 
     batch_size = args.batch_size
-    assert batch_size > 1 and batch_size % 8 == 0, "ERROR: Wrong batch size"
+    #assert batch_size > 1 and batch_size % 8 == 0, "ERROR: Wrong batch size"
 
     training_type = args.fine_tuning
     number_of_classes = args.classes
@@ -131,8 +133,8 @@ if __name__ == "__main__":
         pretrained = True
     else:
         pretrained = False
-        # If model is not pretrained, do not do fine tuning. Train all layers
-        training_type = 0
+        # If model is not pretrained, do fine tuning. Train all layers
+        training_type = 1
 
     models_to_train = [
         "resnet18", "resnet34", "resnet50",
