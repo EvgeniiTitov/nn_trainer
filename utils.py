@@ -31,11 +31,13 @@ class DatasetLoader:
         # CONFIRM: removed horizontal flip. RandomResizedCrop correct? Or
         # just resize required?
         if self.perform_aug:
+            print("Augmentation will be applied to the training images")
             data_transforms = {
                 "train": transforms.Compose([
+                    transforms.Resize(self.input_size),
                     transforms.CenterCrop(self.input_size),
-                    transforms.RandomRotation(degrees=15),
-                    transforms.ColorJitter(),
+                    transforms.RandomRotation(degrees=45),
+                    transforms.RandomHorizontalFlip(p=0.5),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
                 "val": transforms.Compose([
@@ -43,11 +45,11 @@ class DatasetLoader:
                     transforms.CenterCrop(self.input_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-                              }
-
+                }
         else:
             data_transforms = {
                 "train": transforms.Compose([
+                    transforms.Resize(self.input_size),
                     transforms.CenterCrop(self.input_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
@@ -61,25 +63,24 @@ class DatasetLoader:
         return data_transforms
 
     def generate_training_datasets(self):
-
         data_transforms = self.generate_transformations()
 
         image_datasets = {
             phase: datasets.ImageFolder(os.path.join(self.path_to_images, phase),
                                                      data_transforms[phase])
                                                      for phase in ["train", "val"]
-                         }
+        }
 
         data_loaders = {
             phase: torch.utils.data.DataLoader(image_datasets[phase],
                                                batch_size=self.batch_size,
                                                shuffle=True)
                                 for phase in ["train", "val"]
-                       }
+        }
 
         dataset_sizes = {
             phase: len(image_datasets[phase]) for phase in ["train", "val"]
-                        }
+        }
 
         class_names = image_datasets["train"].classes
 
