@@ -1,21 +1,9 @@
-# python C:\Users\Evgenii\Desktop\Machine_Learning_NNs\work_related_models\main.py
-# --train=D:\Desktop\Programming\ML_NN\DataSets\Cats_Dogs_Smaller\cats_vs_dogs
-# --pretrained=0 --fine_tuning=1 --epoch=40 --augmentation=1 --train_models resnet18 --visualise=1
 from utils import DatasetLoader, Visualizer
 from trainer import GroupTrainer
 import torch
 import sys
 import os
 import argparse
-
-
-# TODO: 1. Find mistakes in logic
-#       2. Images are of different sizes + smaller than 224. Are you sure they resized and
-#          augmented correctly?
-#       3. Check your hyperparameters AND what parameters affect training and in what way
-#       4. Do some proper tutorials + read your saved article about transfer learn
-#       3. Add training options for 1 model with different parameters
-#       4. Fix augmentation (remove cropping, add rotations, flips, colour changes)
 
 
 def parse_args():

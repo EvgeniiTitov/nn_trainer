@@ -28,8 +28,6 @@ class DatasetLoader:
         for validation
         :return:
         """
-        # CONFIRM: removed horizontal flip. RandomResizedCrop correct? Or
-        # just resize required?
         if self.perform_aug:
             print("\nAugmentation will be applied to the training images")
             data_transforms = {
@@ -115,8 +113,7 @@ class Visualizer:
         plt.show()
 
     @staticmethod
-    def visualize_training_results(accuracy,
-                                   loss):
+    def visualize_training_results(accuracy, loss):
 
         if len(accuracy) > 0 and len(loss) > 0:
             plt.subplot(1, 2, 1)
@@ -131,13 +128,14 @@ class Visualizer:
 
         return
 
-    def model_visualisation(self,
-                            model,
-                            nb_of_images,
-                            data_loaders,
-                            device,
-                            class_names):
-
+    def model_visualisation(
+            self,
+            model,
+            nb_of_images,
+            data_loaders,
+            device,
+            class_names
+    ):
         was_training = model.training
         model.eval()
         images_processed = 0
