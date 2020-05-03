@@ -13,7 +13,7 @@ import argparse
 #       2. Images are of different sizes + smaller than 224. Are you sure they resized and
 #          augmented correctly?
 #       3. Check your hyperparameters AND what parameters affect training and in what way
-#       4. Do some proper tutorials + read your saved article about transfer learning
+#       4. Do some proper tutorials + read your saved article about transfer learn
 #       3. Add training options for 1 model with different parameters
 #       4. Fix augmentation (remove cropping, add rotations, flips, colour changes)
 
@@ -135,8 +135,9 @@ if __name__ == "__main__":
         pretrained = True
     else:
         pretrained = False
+        print("WARNING: Pretrained=False, make sure you're traning all layers!")
         # If model is not pretrained, do fine tuning - train all layers
-        fine_tuning = True
+        #fine_tuning = True
 
     models_to_train = [
         "resnet18", "resnet34", "resnet50",

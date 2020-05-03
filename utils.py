@@ -31,30 +31,30 @@ class DatasetLoader:
         # CONFIRM: removed horizontal flip. RandomResizedCrop correct? Or
         # just resize required?
         if self.perform_aug:
-            print("Augmentation will be applied to the training images")
+            print("\nAugmentation will be applied to the training images")
             data_transforms = {
                 "train": transforms.Compose([
-                    transforms.Resize(self.input_size),
-                    transforms.CenterCrop(self.input_size),
+                    transforms.Resize((self.input_size, self.input_size)),
                     transforms.RandomRotation(degrees=45),
                     transforms.RandomHorizontalFlip(p=0.5),
+                    transforms.ColorJitter(),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
                 "val": transforms.Compose([
-                    transforms.Resize(self.input_size),  # 256 used to be
+                    transforms.Resize((self.input_size, self.input_size)),  # 256 used to be
                     transforms.CenterCrop(self.input_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
                 }
         else:
+            print("\nNo augmentation will be applied to the training images")
             data_transforms = {
                 "train": transforms.Compose([
-                    transforms.Resize(self.input_size),
-                    transforms.CenterCrop(self.input_size),
+                    transforms.Resize((self.input_size, self.input_size)),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
                 "val": transforms.Compose([
-                    transforms.Resize(self.input_size),  # 256 used to be
+                    transforms.Resize((self.input_size, self.input_size)),  # 256 used to be
                     transforms.CenterCrop(self.input_size),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
