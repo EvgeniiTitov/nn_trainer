@@ -7,7 +7,8 @@ import sys
 import torch.nn as nn
 from collections import defaultdict
 from tqdm import tqdm
-from torchvision import models
+from torchvision import models, utils
+from utils import Visualizer
 
 
 
@@ -87,8 +88,8 @@ class GroupTrainer:
                                                         model,
                                                         performance_result[0][2],
                                                         performance_result[0][3]
-                                                               )
-                 )
+                                                        )
+            )
 
         return
 
@@ -104,6 +105,12 @@ class GroupTrainer:
 
         image_dataset, data_loaders, dataset_sizes, class_names = \
                                     dataset_manager.generate_training_datasets()
+
+        # TODO: Create an argparse argument for that
+        flag = True
+        if flag:
+            self.visualise_batch(data_loaders["train"])
+            sys.exit()
 
         # Main training loop
         for model_name in self.models:
@@ -279,6 +286,7 @@ class GroupTrainer:
                         # For inseption the loss is the sum of the final output and the
                         # auxiliary output. During testing consider only the final one
                         if is_inception and phase == "train":
+                            print("Training the exception model, check")
                             # Run batch thru the net, get activations from both layers
                             activations, aux_activations = model(batch)
                             normal_loss = loss_function(activations, labels)
@@ -298,16 +306,15 @@ class GroupTrainer:
                     running_loss += loss.item() * batch.size(0)
                     running_corrects += torch.sum(class_predictions == labels.data)
 
-                # TO CONFIRM
-                # if phase == "train":
-                #     scheduler.step()
+                # Decay LR after N epochs
+                if phase == "train":
+                    scheduler.step()
 
                 epoch_loss = running_loss / dataset_sizes[phase]
                 epoch_accuracy = running_corrects.double() / dataset_sizes[phase]
 
-                print("{} Loss: {:.4f} Acc: {:.4f}".format(
-                                    phase, epoch_loss, epoch_accuracy
-                                                           ))
+                print("{} Loss: {:.4f} Acc: {:.4f}".format(phase, epoch_loss, epoch_accuracy))
+
                 # For visualization
                 if phase == "val":
                     val_accuracy_history.append(epoch_accuracy.item())
@@ -351,8 +358,7 @@ class GroupTrainer:
              val_loss_history,
              best_val_accuracy,
              best_accuracy_epoch,
-             early_stopped_on
-             )
+             early_stopped_on)
         )
 
     def freeze_layers(self, model):
@@ -411,6 +417,10 @@ class GroupTrainer:
 
         return model
 
+    def visualise_batch(self, batch):
+        images, classes = next(iter(batch))
+        output = utils.make_grid(images)
+        Visualizer.show(output)
 
 class IndividualTrainer:
 

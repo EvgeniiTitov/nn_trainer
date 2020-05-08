@@ -24,8 +24,8 @@ class Tester:
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225]
-                                 )
-                                       ])
+            )
+        ])
 
         return transform
 
@@ -53,10 +53,7 @@ class Tester:
         return classes_predicted.item(), percents[classes_predicted].item()
 
     @staticmethod
-    def validation(model,
-                   data_loaders,
-                   device):
-
+    def validation(model, data_loaders, device):
         correct, total = 0, 0
 
         with torch.no_grad():

@@ -1,10 +1,16 @@
 from utils import DatasetLoader, Visualizer
-from trainer import GroupTrainer
+from trainers import GroupTrainer, QuantizedTrainer
+from testers import Tester
 import torch
 import sys
 import os
 import argparse
 
+
+#TODO:  2. Check your hyperparameters AND what parameters affect training and in what way
+#       3. Do some proper tutorials + read your saved article about transfer learn
+#       4. Add training options for 1 model with different parameters
+#
 
 def parse_args():
     parser = argparse.ArgumentParser()
