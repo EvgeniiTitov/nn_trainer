@@ -88,7 +88,11 @@ class Visualizer:
 
     @staticmethod
     def visualize_models_performance(models_performance):
+        """
 
+        :param models_performance:
+        :return:
+        """
         labels = list()
         for model_name, performance_metrics in models_performance.items():
             # Metrics were returned in a tuple. Then appended to defaultdict(list), so [][]
@@ -113,7 +117,12 @@ class Visualizer:
 
     @staticmethod
     def visualize_training_results(accuracy, loss):
+        """
 
+        :param accuracy:
+        :param loss:
+        :return:
+        """
         if len(accuracy) > 0 and len(loss) > 0:
             plt.subplot(1, 2, 1)
             plt.plot(accuracy, '-go')
@@ -135,6 +144,15 @@ class Visualizer:
             device,
             class_names
     ):
+        """
+
+        :param model:
+        :param nb_of_images:
+        :param data_loaders:
+        :param device:
+        :param class_names:
+        :return:
+        """
         was_training = model.training
         model.eval()
         images_processed = 0
@@ -167,7 +185,32 @@ class Visualizer:
         model.train_models(mode=was_training)
 
     @staticmethod
+    def print_out_training_results(training_results):
+        """
+
+        :param training_results:
+        :return:
+        """
+        print("\nTRAINING RESULTS:")
+        for model, performance_result in training_results.items():
+            print(
+                'Model:{} Best acc: {:.4f} on {} epoch'.format(
+                    model,
+                    performance_result[0][2],
+                    performance_result[0][3]
+                )
+            )
+
+        return
+
+    @staticmethod
     def show(image, title=None):
+        """
+
+        :param image:
+        :param title:
+        :return:
+        """
         img = image.numpy().transpose((1, 2, 0))
         mean = np.array([0.485, 0.456, 0.406])
         std = np.array([0.229, 0.224, 0.225])
