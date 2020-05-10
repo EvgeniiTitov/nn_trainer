@@ -3,7 +3,7 @@ import copy
 import torch
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from torchvision import utils
+from torchvision import utils, models
 import numpy as np
 import os
 
@@ -84,10 +84,8 @@ class BaseTrainer:
             model_name, self.device))
 
         for epoch in range(epochs):
-
             print("-" * 30)
             print(f"{epoch + 1} / {epochs}")
-
             # Each training epoch consists of training and validation phase
             for phase in ["train", "val"]:
 
@@ -100,8 +98,11 @@ class BaseTrainer:
                 running_loss, running_corrects = 0.0, 0
 
                 for batch, labels in dataloaders[phase]:
-                    batch = batch.to(self.device)
-                    labels = labels.to(self.device)
+                    try:
+                        batch = batch.to(self.device)
+                        labels = labels.to(self.device)
+                    except Exception as e:
+                        print(f"WARNING! Failed to move data to device: {self.device}")
 
                     optimizer.zero_grad()
                     # Gradients and backprop with subsequent parameters changes are only
@@ -418,6 +419,35 @@ class BaseTrainer:
 
         plt.legend(labels)
         plt.show()
+
+    def initialize_a_model(self, model_name):
+        """
+
+        :param model_name:
+        :return:
+        """
+        if model_name == "resnet18":
+            model = models.resnet18(pretrained=self.pretrained)
+        elif model_name == "resnet34":
+            model = models.resnet34(pretrained=self.pretrained)
+        elif model_name == "resnet50":
+            model = models.resnet50(pretrained=self.pretrained)
+        elif model_name == "alexnet":
+            model = models.alexnet(pretrained=self.pretrained)
+        elif model_name == "inception3":
+            model = models.inception_v3(pretrained=self.pretrained)
+        elif model_name == "densenet121":
+            model = models.densenet121(pretrained=self.pretrained)
+        elif model_name == "squeezenet1_0":
+            model = models.squeezenet1_0(pretrained=self.pretrained)
+        elif model_name == "vgg16":
+            model = models.vgg16(pretrained=self.pretrained)
+        elif model_name == "vgg19":
+            model = models.vgg19(pretrained=self.pretrained)
+        else:
+            raise NameError(f"Invalid name of the model: {model_name}")
+
+        return model
 
     def create_quantized_model(self, model):
         """

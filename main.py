@@ -1,4 +1,5 @@
-from utils import DatasetLoader, Visualizer
+from utils import Visualizer
+from data_loader import DatasetLoader
 from trainers import GroupTrainer, QuantizedTrainer, IndividualTrainer
 from testers import Tester
 import torch
@@ -23,11 +24,11 @@ def parse_args():
                         help="Provide name(s) of the model(s) to train or leave blank and train all")
     parser.add_argument('--pretrained', type=int, default=1,
                         help="Train models pretrained on the ImageNet DS or not")
-    parser.add_argument('--lr', default=0.001, help="Learning rate")
+    parser.add_argument('--lr', nargs='+', default=0.001, help="Learning rate")
     parser.add_argument('--gpu', default=True, help="Calculations done by GPU or CPU")
     parser.add_argument('--epoch', type=int, default=15)
-    parser.add_argument('--batch_size', type=int, default=8, help="Number of images per batch")
-    parser.add_argument('--optimizer', default="SGD", help="Choose optimizer SGD or ADAM (not case sensitive)")
+    parser.add_argument('--batch_size', nargs='+', default=8, help="Number of images per batch")
+    parser.add_argument('--optimizer', nargs='+',default="SGD", help="Choose optimizer SGD or ADAM (not case sensitive)")
     parser.add_argument('--classes', type=int, default=2, help="Number of classes to classify")
     parser.add_argument('--early_stopping', type=int, default=5,
                         help="Number of epochs without any loss reduction on val dataset - Early stopping")
@@ -62,6 +63,9 @@ def train(
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     if training_type == "group":
+        assert len(batch_size) == 1, "\nERROR: No allowed to provide multiple batches for group training"
+        assert len(lr) == 1, "\nERROR: No allowed to provide multiple learning rates for group training"
+        assert len(optimizer) == 1, "\nERROR: No allowed to provide multiple optimizers for group training"
         trainer = GroupTrainer(
             path_to_training_data=training_data,
             weights_savepath=save_path,
@@ -76,16 +80,39 @@ def train(
         trainer.train_models(
             models_to_train=models_to_train,
             epochs=number_of_epoch,
-            batch=batch_size,
-            optimizer_name=optimizer,
+            batch=batch_size[0],
+            optimizer_name=optimizer[0],
             scheduler_required=False,
-            lr=lr,
-            visualise_batch=True
+            lr=lr[0],
+            visualise_batch=False
         )
 
     elif training_type == "individual":
-        #trainer = IndividualTrainer()
-        raise NotImplementedError
+        assert len(models_to_train) == 1, "Individual training allowed only for 1 model"
+        assert 1 <= len(optimizer) <= 2, "Cannot handle more than 2 optimizers"
+        assert 1 <= len(batch_size) <= 2, "Cannot handle more than 2 batch sizes"
+        assert 1 <= len(lr) <= 2, "Cannot hangle more than 2 learning rate values"
+
+        trainer = IndividualTrainer(
+            path_to_training_data=training_data,
+            weights_savepath=save_path,
+            number_of_classes=number_of_classes,
+            device=device,
+            fine_tuning=fine_tuning,
+            pretrained=pretrained,
+            augmentation=augmentation,
+            early_stopping=patience,
+            dataset_loader=DatasetLoader
+        )
+        trainer.train_model(
+            model_to_train=models_to_train[0],
+            epochs=number_of_epoch,
+            batch_sizes=batch_size,
+            optimizer_names=optimizer,
+            scheduler_required=False,
+            lrs=lr,
+            visualise_batch=False
+        )
 
     elif training_type == "quantized":
         #trainer = QuantizedTrainer()
@@ -95,15 +122,12 @@ def train(
 if __name__ == "__main__":
     args = parse_args()
 
+    # General arguments
     assert args.train_data and os.path.isdir(args.train_data), "No or incorrect training data provided!"
     path_to_training_data = args.train_data
 
     assert isinstance(args.epoch, int) and 0 < args.epoch < 1000, "Wrong number of epoch"
     number_of_epoch = args.epoch
-
-    assert isinstance(args.batch_size, int) and args.batch_size > 0 and args.batch_size % 8 == 0,\
-                                                                    "Wrong batch size provided"
-    batch_size = args.batch_size
 
     number_of_classes = args.classes
     assert 0 < number_of_classes < 1000, "ERROR: Wrong number of classes"
@@ -115,9 +139,6 @@ if __name__ == "__main__":
     else:
         patience = 0
 
-    assert args.optimizer.upper().strip() in ["ADAM", "SGD"], "Wrong optimizer provided. Select ADAM or SGD"
-    optimizer = args.optimizer
-
     if not os.path.exists(args.save_weights):
         try:
             os.mkdir(args.save_weights)
@@ -128,6 +149,9 @@ if __name__ == "__main__":
     else:
         save_path = args.save_weights
 
+    assert args.training_type.lower().strip() in ["group", "quantized", "individual"], \
+                                        "Wrong training type. Select either Group, Quantized or Individual"
+
     # Either training all layers - fine tuning, or just the classifier
     fine_tuning = False if not args.fine_tuning else True
     if args.pretrained:
@@ -136,20 +160,26 @@ if __name__ == "__main__":
         pretrained = False
         print("\n--> WARNING: Pretrained=False, make sure you're training all layers!")
         # If model is not pretrained, do fine tuning - train all layers
-        #fine_tuning = True
+        # fine_tuning = True
 
     models_to_train = [
-        "resnet18", "resnet34", "resnet50", "alexnet", "inception3",
-        "densenet121", "squeezenet1_0", "vgg16", "vgg19"
+        "resnet18", "resnet34", "resnet50",
+        "alexnet", "inception3", "densenet121",
+        "squeezenet1_0", "vgg16", "vgg19"
     ]
-
     if args.train_models:
-        models_to_train = [model.lower().strip() for model in args.train_models if\
-                                                                    model.lower().strip() in models_to_train]
+        models_to_train = [model.lower().strip() for model in args.train_models if \
+                                                            model.lower().strip() in models_to_train]
 
-    assert 0 < args.lr < 1, "Check your learning rate"
-    assert args.training_type.lower().strip() in ["group", "quantized", "individual"], \
-                                        "Wrong training type. Select either Group, Quantized or Individual"
+    batch_size = [int(batch) for batch in args.batch_size if int(batch) > 0]
+    assert len(batch_size) > 0, "Wrong batch size(s) provided. Must be positive numbers"
+
+    optimizer = [optimizer.upper().strip() for optimizer in args.optimizer if \
+                                                        optimizer.upper().strip() in  ["ADAM", "SGD"]]
+    assert len(optimizer) > 0, "No optimizer provided"
+
+    lrs = [float(lr) for lr in args.lr if float(lr) > 0]
+    assert len(lrs) > 0, "Wrong learning rate provided"
 
     print("\n----------TRAINING PARAMETERS----------")
     print("Training type:", args.training_type)
@@ -165,7 +195,7 @@ if __name__ == "__main__":
     else:
         print("Early stopping after:", patience)
     print("Optimizer:", optimizer)
-    print("Learning rate:", args.lr)
+    print("Learning rate:", lrs)
     print("Augmentation:", args.augmentation)
     input_confirmation = input("\nCONFIRMED? Y/N: ")
 
@@ -182,7 +212,7 @@ if __name__ == "__main__":
             number_of_classes=number_of_classes,
             pretrained=pretrained,
             augmentation=args.augmentation,
-            lr=args.lr,
+            lr=lrs,
             training_type=args.training_type
         )
     else:

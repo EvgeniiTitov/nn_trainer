@@ -1,130 +1,160 @@
-import copy
-import time
+import torch.optim as optim
+from trainers.base_trainer import BaseTrainer
+from collections import defaultdict
+import torch.nn as nn
 import torch
 
-class IndividualTrainer:
-
+class IndividualTrainer(BaseTrainer):
     def __init__(
             self,
-            model,
-            device="cpu"
+            path_to_training_data,
+            weights_savepath,
+            number_of_classes,
+            device,
+            fine_tuning,
+            pretrained,
+            augmentation,
+            early_stopping,
+            dataset_loader
     ):
+        super().__init__(
+            path_to_training_data,
+            weights_savepath,
+            number_of_classes,
+            device,
+            fine_tuning,
+            pretrained,
+            augmentation,
+            early_stopping,
+            dataset_loader
+        )
 
-        self.model = model
-        self.device = device
-        self.best_weights = copy.deepcopy(model.state_dict())
-        self.best_valid_accuracy = 0.0
-        self.best_valid_loss = float("inf")
-
-    def train(
+    def train_model(
             self,
+            model_to_train,
             epochs,
-            image_dataset,
-            data_loaders,
-            dataset_sizes,
-            class_names,
-            criterion,
-            optimizer,
-            scheduler
+            batch_sizes,
+            optimizer_names,
+            scheduler_required,
+            lrs,
+            visualise_batch
     ):
+        """
+        To check:
+            batch +- 8
+            lr +/- 20%
+            optimizer
+            scheduler
+        :param models_to_train:
+        :param epochs:
+        :param batch_sizes:
+        :param optimizer_names:
+        :param scheduler_required:
+        :param lrs:
+        :param visualise_batch:
+        :return:
+        """
+        training_results = defaultdict(list)
+        print("\nTraining commences")
+        for optmzr in optimizer_names:
+            for batch_size in batch_sizes:
+                # Initialize dataloader and generate data for training
+                input_size = 224
+                is_inception = False
+                if model_to_train.lower().strip() == "inception3":
+                    print("--> Training the Inception3 model!")
+                    is_inception = True
+                    input_size = 299
 
-        # Early stopping condition
-        epochs_without_improvements = 0
-        patience = 20
+                dataset_manager = self.dataset_loader(
+                    data_path=self.path_to_training_data,
+                    augmentation=self.augmentation,
+                    input_size=input_size,
+                    batch_size=batch_size
+                )
+                try:
+                    image_dataset, data_loaders, dataset_sizes, class_names = \
+                                                dataset_manager.generate_training_datasets()
+                except Exception as e:
+                    print(f"Failed to generate training dataset. Error: {e}")
+                    raise Exception
 
-        val_accuracy_history, val_loss_history = list(), list()
-        start_time = time.time()
+                for lr in lrs:
+                    print("Optimizer:", optmzr)
+                    print("Batch size:", batch_size)
+                    print("Learning rate:", lr)
 
-        print("\nTraining commenced. Computations on:", self.device)
+                    model = self.initialize_a_model(model_name=model_to_train)
 
-        for epoch in range(epochs):
-            print("-" * 30)
-            print(f"{epoch + 1} / {epochs}")
-            # Each epoch consists of two phases: train and validation
-            for phase in ["train", "val"]:
+                    # If not fine tuning -> freeze
+                    if not self.fine_tuning:
+                        model = self.freeze_model_layers(model)
+                        print(f"{model_to_train}'s layers frozen. Fine tuning: {self.fine_tuning}")
 
-                # Set up the model in accordance with the phase. During evaluation we cannot
-                # tweak its parameters - no gradients get calculated, no backprop, no optim. step
-                if phase == "train":
-                    self.model.train_models()
-                else:
-                    self.model.eval()
-                # Keep track of model's performance during the epoch
-                running_loss, running_corrects = 0.0, 0
+                    # Reshape model depending on the number of classes to learn. New classifier's
+                    # parameters have .requires_grad = True
+                    if self.nb_of_classes != 1000:
+                        model = self.reshape_model(model)
+                        print(f"{model_to_train}'s been reshaped to predict {self.nb_of_classes} classes")
 
-                # Load data in batches. Each phase's got its own train and eval data
-                for batch, labels in data_loaders[phase]:
-                    # Move batches and classes to GPU for faster computation
-                    batch = batch.to(self.device)
-                    labels = labels.to(self.device)
-                    # Zero gradient values
-                    optimizer.zero_grad()
+                    # Ensure model is in the memory of selected device
+                    try:
+                        model.to(self.device)
+                    except Exception as e:
+                        print(f"Failed during moving model to {self.device}. Error: {e}")
+                        raise Exception
 
-                    # Activation all not frozen gradients during train. For validation we do not
-                    # need gradients calculated
-                    with torch.set_grad_enabled(phase == "train"):
-                        # Get predictions for all images in the batch (raw neuron outcomes)
-                        activations = self.model(batch)
+                    # Collect model's parameters to train
+                    parameters_to_train = self.get_params_to_train(model)
 
-                        # Get actual classes predicted (run over all activations and pick the largest
-                        # value whose index is essentially the class predicted
-                        _, classes_predicted = torch.max(activations, dim=1)
-
-                        # Calculate loss value for the batch
-                        loss = criterion(activations, labels)
-
-                        # If train phase perform backpropagation and make a gradient step
-                        if phase == "train":
-                            loss.backward()
-                            optimizer.step()
-
-                    # Keep track (add up) all losses and correct predictions for all batches
-                    running_loss += loss.item() * batch.size(0)
-                    running_corrects += torch.sum(classes_predicted == labels.data)
-
-                # Increment decayer to decrease the learning rate once every N epoch
-                if phase == "train":
-                    scheduler.step()
-
-                # Calculate average epoch loss and accuracy for each phase by deleting all
-                # loss and accuracy values by the total number of images
-                epoch_loss = running_loss / dataset_sizes[phase]
-                epoch_accuracy = running_corrects.double() / dataset_sizes[phase]
-
-                statistics = "{} Loss: {:.4f} Acc: {:.4f}".format(
-                                            phase, epoch_loss, epoch_accuracy)
-                print(statistics)
-
-                if phase == "val":
-                    val_accuracy_history.append(epoch_accuracy)
-                    val_loss_history.append(epoch_loss)
-
-                # Check if we got the best accuracy during validation. Save weights if true
-                if phase == "val" and epoch_accuracy > self.best_valid_accuracy:
-                    self.best_valid_accuracy = epoch_accuracy
-                    self.best_weights = copy.deepcopy(self.model.state_dict())
-
-                # Loss tracking for early stopping to prevent overfitting
-                if phase == "val" and epoch_loss < self.best_valid_loss:
-                    self.best_valid_loss = epoch_loss
-
-                elif phase == "val" and epoch_loss > self.best_valid_loss:
-                    if epochs_without_improvements >= patience:
-                        print("Early stopping. No loss improvements "
-                              "on validation dataset after 7 epochs")
-                        break
+                    if optmzr.upper().strip() == "SGD":
+                        optimizer = optim.SGD(params=parameters_to_train, lr=lr, momentum=0.9)
+                    elif optmzr.upper().strip() == "ADAM":
+                        optimizer = optim.Adam(params=parameters_to_train, lr=lr, betas=(0.9, 0.999))
                     else:
-                        epochs_without_improvements += 1
+                        raise NotImplementedError("Check your optimizer. You can select either Adam or SGD")
 
-            # Move to the next epoch unless early stopping and we're breaking out
-            else:
-                continue
-            # Break if early stepping and we broke out from the nested loop
-            break
+                    # Initialize loss function
+                    loss_function = nn.CrossEntropyLoss()
 
-        training_time = time.time() - start_time
-        print("\nTraining completed in: {:.1f} seconds".format(training_time))
+                    # Initialize the scheduler
+                    scheduler = None
+                    if scheduler_required:
+                        scheduler = optim.lr_scheduler.StepLR(
+                            optimizer=optimizer,
+                            step_size=7,
+                            gamma=0.1
+                        )
 
-        self.model.load_state_dict(self.best_weights)
+                    trained_model, performance_metrics = self.train(
+                        model=model,
+                        model_name=model_to_train,
+                        loss_function=loss_function,
+                        optimizer=optimizer,
+                        scheduler=scheduler,
+                        dataloaders=data_loaders,
+                        dataset_sizes=dataset_sizes,
+                        epochs=epochs,
+                        is_inception=is_inception
+                    )
 
-        return self.model, val_accuracy_history, val_loss_history
+                    training_conditions = f"Model: {model_to_train}, " \
+                                          f"Optim: {optmzr}, " \
+                                          f"Batch size: {batch_size}, lr: {lr}"
+                    training_results[training_conditions].append(performance_metrics)
+
+                    # Save actual model or state_dict
+                    self.save_model(
+                        model=trained_model,
+                        model_name=model_to_train,
+                        accuracy=round(max(performance_metrics[0]), 4),
+                        optimizer=optmzr
+                    )
+
+                    # Better safe than sorry
+                    del model, trained_model, performance_metrics, parameters_to_train
+                    torch.cuda.empty_cache()
+
+        print("\nTraining complete. All weights saved to:", self.save_path)
+        self.print_out_training_results(training_results)
+        self.visualize_training_results(training_results)

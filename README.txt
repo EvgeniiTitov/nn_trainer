@@ -21,3 +21,5 @@ To play with:
 - Scheduler
 - Augmentation
 - Different nets
+
+python C:\Users\Evgenii\Desktop\Machine_Learning_NNs\work_related_models\main.py --train_data=D:\Desktop\Programming\ML_NN\DataSets\Cats_Dogs_Smaller\cats_vs_dogs --pretrained=0 --fine_tuning=1 --train_models alexnet inception3 densenet121 --epoch=10 --batch_size=16 --optimizer=Adam --augmentation=1
