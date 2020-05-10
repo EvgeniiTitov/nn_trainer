@@ -7,7 +7,7 @@ class TheModelClass(Module):
     pass
 
 
-class Model():
+class TrainedModel():
     """
 
     """
