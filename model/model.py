@@ -2,6 +2,8 @@ import torch
 from torch.nn import Module
 from torchvision import transforms
 import torchvision
+import sys
+
 
 class TheModelClass(Module):
     pass
@@ -11,9 +13,10 @@ class TrainedModel():
     """
 
     """
-    def __init__(self, save_type, path_to_data, labels, model_class=None):
+    def __init__(self, load_type, path_to_data, classes, model_class=None):
         # Load entire model
-        if save_type == "model":
+        if load_type == "model":
+            print("Attempting to load a model...")
             try:
                 self.model = torch.load(path_to_data)
                 self.model.eval()
@@ -27,9 +30,9 @@ class TrainedModel():
             # Use model class and statedict data provided to load the model
             raise NotImplementedError
 
-        self.labels = labels
+        self.classes = classes
 
-    def predict_batch(self, images):
+    def predict_batch(self, batch_of_images: list):
         """
 
         :param images:
@@ -38,8 +41,8 @@ class TrainedModel():
         image_tensors = list()
 
         # preprocess images and construct a batch
-        for image in images:
-            image_tensor = self.preprocess_image(image)
+        for image in batch_of_images:
+            image_tensor = self._preprocess_image(image)
             image_tensor.unsqueeze_(0)
             image_tensors.append(image_tensor)
 
@@ -50,11 +53,11 @@ class TrainedModel():
             model_output = self.model(images_batch)
 
         # parse predictions
-        labels = [self.labels[out.data.numpy().argmax()] for out in model_output]
+        labels = [self.classes[out.data.numpy().argmax()] for out in model_output]
 
         return labels
 
-    def preprocess_image(self, image):
+    def _preprocess_image(self, image):
         """
 
         :param image:
@@ -69,6 +72,3 @@ class TrainedModel():
                     )]
         )
         return image_transforms(image)
-
-
-
