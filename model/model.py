@@ -20,6 +20,7 @@ class TrainedModel():
             try:
                 self.model = torch.load(path_to_data)
                 self.model.eval()
+                self.model.cuda()
             except Exception as e:
                 print("Failed to load the model:", path_to_data)
                 raise
@@ -47,13 +48,14 @@ class TrainedModel():
             image_tensors.append(image_tensor)
 
         images_batch = torch.cat(image_tensors)
+        images_batch = images_batch.cuda()
 
         # forward pass
         with torch.no_grad():
             model_output = self.model(images_batch)
 
         # parse predictions
-        labels = [self.classes[out.data.numpy().argmax()] for out in model_output]
+        labels = [self.classes[out.data.numpy().argmax()] for out in model_output.cpu()]
 
         return labels
 

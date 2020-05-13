@@ -82,10 +82,9 @@ def prep_images_labels(path_to_images: list) -> tuple:
 
 
 def main():
-    accuracy = 0.0
-    path_to_model = r""
+    path_to_model = r"D:\Desktop\system_output\dumper_training\resnet18_Acc1.0_Ftuned1_Pretrained1_OptimizerADAM.pth"
     path_to_images = r"D:\Desktop\system_output\TEST_DUMPERS"
-    classes = ["defected", "fine"]
+    classes = ["def", "ok"]
 
     # Load a model
     model = TrainedModel(
@@ -107,9 +106,12 @@ def main():
     for i in range(len(image_batches)):
         batch_of_images = image_batches[0]
         batch_of_labels = label_batches[0]
-
+        print("Labels:", batch_of_labels)
         # Send batch of images to NN
         predictions = model.predict_batch(batch_of_images)
+        print("Predictions:", predictions)
+        print()
+
 
         # Compare true labels with the predicted ones
 
