@@ -74,3 +74,19 @@ class TrainedModel():
                     )]
         )
         return image_transforms(image)
+
+    def predict_using_coord(self, images_on_gpu, coordinates):
+
+        # 1. Define regions on the images using coordinates that need to be run through
+        # the network.
+
+        # 2. Combine them in a batch
+
+
+
+        with torch.no_grad():
+            model_output = self.model(images_on_gpu)
+
+        labels = [self.classes[out.data.numpy().argmax()] for out in model_output.cpu()]
+
+        return labels

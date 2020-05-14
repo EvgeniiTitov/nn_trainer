@@ -174,5 +174,6 @@ def main():
     accuracy = correct_pred / nb_test_images
     print(f"\nACCURACY ON {nb_test_images} IMAGES: {round(accuracy, 3)}")
 
+
 if __name__ == "__main__":
     main()
