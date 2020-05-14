@@ -4,6 +4,7 @@ import os
 import sys
 from PIL import Image
 import time
+import inspect
 
 
 BATCH_SIZE = 10
@@ -17,6 +18,7 @@ BATCH_SIZE = 10
 
 
 class BatchTester:
+    counter = 0
 
     @staticmethod
     def split_into_batches(items, batch_size=6):
@@ -80,7 +82,7 @@ class BatchTester:
                 continue
             decoded_images.append(image)
 
-        assert len(labels) == len(decoded_images), "Nb of images and labels !="
+        assert len(labels) == len(decoded_images), "Nb of images != labels"
 
         return labels, decoded_images
 
@@ -93,6 +95,21 @@ class BatchTester:
                 correct += 1
 
         return correct
+
+    @staticmethod
+    def save_processed_batch(batch, labels, save_path):
+        assert len(batch) == len(labels), "Nb of images != labels"
+
+        for i in range(len(batch)):
+            image = batch[i]
+            label = labels[i]
+            image_name = str(BatchTester.counter) + '_' + label
+            BatchTester.counter += 1
+            try:
+                image.save(os.path.join(save_path, image_name + ".jpg"))
+            except Exception as e:
+                print(f"Failed while saving processed image. Error: {e}")
+                continue
 
 
 def generate_test_images(path_to_images, class_, destination):
@@ -109,9 +126,12 @@ def generate_test_images(path_to_images, class_, destination):
 
 
 def main():
-    path_to_model = r"D:\Desktop\system_output\dumper_training\resnet18_Acc1.0_Ftuned1_Pretrained1_OptimizerADAM.pth"
-    #path_to_model = r"D:\Desktop\system_output\dumper_training\resnet18_Acc0.8249_Ftuned1_Pretrained1_OptimizerSGD.pth"
+    #print(inspect.getsource(Image))
+
+    #path_to_model = r"D:\Desktop\system_output\dumper_training\resnet18_Acc1.0_Ftuned1_Pretrained1_OptimizerADAM.pth"
+    path_to_model = r"D:\Desktop\system_output\dumper_training\resnet18_Acc0.8249_Ftuned1_Pretrained1_OptimizerSGD.pth"
     folder_images = r"D:\Desktop\Programming\ML_NN\DataSets\test_dumpers"
+    save_path = r"D:\Desktop\system_output\TEST_DUMPERS"
     classes = ["def", "ok"]
 
     # Load a model
@@ -145,8 +165,8 @@ def main():
         # Send batch of images to NN
         predictions = model.predict_batch(batch_of_images)
 
-        #print("Labels:", batch_of_labels)
-        #print("Predictions:", predictions)
+        # Save processed images
+        BatchTester.save_processed_batch(batch_of_images, predictions, save_path)
 
         # Compare true labels with the predicted ones
         corrects = BatchTester.calculate_correct_pred(predictions, batch_of_labels)
