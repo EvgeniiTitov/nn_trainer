@@ -5,29 +5,8 @@ import torch.nn as nn
 import torch
 
 class IndividualTrainer(BaseTrainer):
-    def __init__(
-            self,
-            path_to_training_data,
-            weights_savepath,
-            number_of_classes,
-            device,
-            fine_tuning,
-            pretrained,
-            augmentation,
-            early_stopping,
-            dataset_loader
-    ):
-        super().__init__(
-            path_to_training_data,
-            weights_savepath,
-            number_of_classes,
-            device,
-            fine_tuning,
-            pretrained,
-            augmentation,
-            early_stopping,
-            dataset_loader
-        )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def train_model(
             self,

@@ -10,13 +10,6 @@ import inspect
 BATCH_SIZE = 10
 
 
-'''
-1. Find bug (batch size affects accuracy + seems like it keeps running over one batch
-2. Test
-3. Add ability to save images with correct predictions 
-'''
-
-
 class BatchTester:
     counter = 0
 
