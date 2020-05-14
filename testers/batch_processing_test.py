@@ -128,8 +128,8 @@ def generate_test_images(path_to_images, class_, destination):
 def main():
     #print(inspect.getsource(Image))
 
-    #path_to_model = r"D:\Desktop\system_output\dumper_training\resnet18_Acc1.0_Ftuned1_Pretrained1_OptimizerADAM.pth"
-    path_to_model = r"D:\Desktop\system_output\dumper_training\resnet18_Acc0.8249_Ftuned1_Pretrained1_OptimizerSGD.pth"
+    path_to_model = r"D:\Desktop\system_output\dumper_training\decent\resnet18_Acc1.0_Ftuned1_Pretrained1_OptimizerADAM.pth"
+    #path_to_model = r"D:\Desktop\system_output\dumper_training\intentional_trash\resnet18_Acc0.5009_Ftuned0_Pretrained0_OptimizerSGD.pth"
     folder_images = r"D:\Desktop\Programming\ML_NN\DataSets\test_dumpers"
     save_path = r"D:\Desktop\system_output\TEST_DUMPERS"
     classes = ["def", "ok"]
