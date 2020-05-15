@@ -97,44 +97,63 @@ class TrainedModel():
             self,
             images_on_gpu: torch.Tensor,
             coordinates: Dict[str, Dict]
-    ):
+    ) -> Dict[str, Dict]:
         """
         :param images_on_gpu:
         :param coordinates:
         :return:
         """
         assert len(images_on_gpu) == len(coordinates), "Nb of images != sets of coordinates"
-
-        # 1. Define regions on the images using coordinates that need to be run through
-        # the network.
         keys = list(coordinates.keys())
+        output_format = {
+            "nb_of_dumpers": 0,
+            "status": []
+        }
+        output = {key: output_format for key in keys}
+
+        # Define regions on the images using coordinates provided that need to be run through
+        # the network to get classified: defected / not-defected vibration dumper
+        subimages_to_process = list()
         for i in range(len(images_on_gpu)):
             image = images_on_gpu[i]
             coord = coordinates[keys[i]]
             # Loop over provided coordinates, and collect all subimages using the
             # provided coordinates
-            subimages = list()
+            # Keep track of how many subimages created on each image
+            counter = 0
             for value in coord.values():
+                # Slice (crop out) new subimage containing an object to classify
                 top = value[0]
                 bottom = value[1]
                 left = value[2]
                 right = value[3]
                 subimage = image[:, top:bottom, left:right]
-
                 # Resize an image
                 subimage = subimage.unsqueeze(dim=0)  # interpolate requires extra dim
                 resized_subimage = F.interpolate(subimage, size=(256, 256))
-                subimages.append(resized_subimage)
+                subimages_to_process.append(resized_subimage)
+                counter += 1
 
-            # Create a batch
-            batch = torch.cat(subimages)
+            output[keys[i]]["nb_of_dumpers"] = counter
 
-            # Visualize slices subimages
-            #TrainedModel.visualise_sliced_img(subimages)
+        nb_of_objects = len(subimages_to_process)
+        # Create a batch
+        batch = torch.cat(subimages_to_process)
+        # Visualize slices subimages
+        #TrainedModel.visualise_sliced_img(subimages_to_process)
+        # Run NN, get predictions
+        predictions = self.run_forward_pass(batch)
+        # Match predictions with appropriate images
+        for key, value in output.items():
+            nb_of_dumpers = value["nb_of_dumpers"]
+            items = list()
+            for i in range(nb_of_dumpers):
+                items.append(predictions.pop(0))
+            value["status"] = items
+            assert nb_of_dumpers == len(value["status"]), "ERROR: Matching went wrong"
+        assert not predictions, "ERROR: Not all results have been matched"
 
-            # Run NN, get predictions
-            predictions = self.run_forward_pass(batch)
-            print(predictions)
+        return output
 
     def run_forward_pass(self, images_on_gpu: torch.Tensor) -> list:
         with torch.no_grad():

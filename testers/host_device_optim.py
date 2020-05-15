@@ -12,7 +12,19 @@ import cv2
 '''
 Once images on GPU, send coordinates and references to images on GPU to your model,
 so that it can make predictions on images already loaded into GPU. There's no need to
-send actual images to your model if they've already been uploaded to your device
+send actual images to your model if they've already been uploaded to your device.
+
+Your images stat on GPU, you send references to those images and coordinates between
+your workers instead of actual images.
+
+1. Send images on GPU and coordinates
+2. Check each image. For each using the coordinates provided create subimages
+3. Resize subimages and concatenate them into 1 large tensor for batch processing
+
+You can either .cat() all dumpers for one image OR for all images on GPU. How to 
+parse and match predictions for dumpers collected from different frames? 
+We need:
+    1) Count N of dumpers on each frame. 
 '''
 
 
@@ -116,6 +128,9 @@ def main():
     images_gpu = HostDeviceOptimizer.load_images_to_GPU(images)
     result = model.predict_using_coord(images_gpu, dumpers_coordinates)
 
+    print("\nRESULTS:")
+    for item in result.items():
+        print(item)
 
 if __name__ == "__main__":
     main()
