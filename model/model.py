@@ -3,6 +3,8 @@ from torch.nn import Module
 from torchvision import transforms
 import torchvision
 import sys
+import cv2
+from typing import List, Dict
 
 
 class TheModelClass(Module):
@@ -48,7 +50,11 @@ class TrainedModel():
             image_tensors.append(image_tensor)
 
         images_batch = torch.cat(image_tensors)
-        images_batch = images_batch.cuda()
+        try:
+            images_batch = images_batch.cuda()
+        except Exception as e:
+            print(f"Failed to move batch to GPU. Error: {e}")
+            raise
 
         # forward pass
         with torch.no_grad():
@@ -75,14 +81,41 @@ class TrainedModel():
         )
         return image_transforms(image)
 
-    def predict_using_coord(self, images_on_gpu, coordinates):
+    def predict_using_coord(
+            self,
+            images_on_gpu: List[torch.Tensor],
+            coordinates: Dict[str, Dict]
+    ):
+        """
+        :param images_on_gpu:
+        :param coordinates:
+        :return:
+        """
+        assert len(images_on_gpu) == len(coordinates), "Nb of images != sets of coordinates"
 
         # 1. Define regions on the images using coordinates that need to be run through
         # the network.
+        keys = list(coordinates.keys())
+        for i in range(len(images_on_gpu)):
+            image = images_on_gpu[i]
+            coord = coordinates[keys[i]]
 
+            subimages = list()
+            for value in coord.values():
+                top = value[0]
+                bottom = value[1]
+                left = value[2]
+                right = value[3]
+                print(left, top, right, bottom)
+
+                subimage = image[:, top:bottom, left:right]
+                subimages.append(subimage)
+
+            TrainedModel.visualise_sliced_img(subimages)
+            sys.exit()
         # 2. Combine them in a batch
 
-
+        # 3. Run these area through your model
 
         with torch.no_grad():
             model_output = self.model(images_on_gpu)
@@ -90,3 +123,12 @@ class TrainedModel():
         labels = [self.classes[out.data.numpy().argmax()] for out in model_output.cpu()]
 
         return labels
+
+    @staticmethod
+    def visualise_sliced_img(images: List[torch.Tensor]) -> None:
+        for image in images:
+            image = image.permute(1, 2, 0)
+            image = image.cpu().numpy()
+            #plt.imshow(image)
+            cv2.imshow("window", image)
+            cv2.waitKey(0)

@@ -5,6 +5,9 @@ import torch
 from testers.batch_processing_test import BatchTester
 from PIL import Image
 import sys
+import numpy as np
+import cv2
+
 
 '''
 1. Send a full size image, load it into GPU (batch of images)
@@ -38,6 +41,7 @@ class HostDeviceOptimizer:
             return batch_gpu
         except Exception as e:
             print(f"Moving images to GPU failed. Error: {e}")
+            raise
 
 
     @staticmethod
@@ -48,7 +52,6 @@ class HostDeviceOptimizer:
         :return:
         """
         image_transforms = torchvision.transforms.Compose([
-                    transforms.Resize((255, 255)),
                     transforms.ToTensor(),
                     transforms.Normalize(
                         [0.485, 0.456, 0.406],
@@ -69,6 +72,7 @@ class HostDeviceOptimizer:
             images.append(image)
 
         return images
+
 
 def main():
     path_to_model = r"D:\Desktop\system_output\dumper_training\decent\resnet18_Acc1.0_Ftuned1_Pretrained1_OptimizerADAM.pth"
@@ -98,22 +102,26 @@ def main():
             {
                 1: [544, 682, 1353, 1594],
                 2: [601, 750, 495, 792]
-            },
-        "IMG_1743.JPG":
-            {
-                1: [2347, 2697, 296, 407],
-                2: [904, 1262, 1980, 2082],
-                3: [2330, 2686, 1916, 2018],
-                4: [1051, 1387, 369, 474],
-                5: [1073, 1496, 3139, 3236],
-                6: [2551, 2939, 3095, 3199],
-                7: [2260, 2669, 714, 817]
             }
     }
+
+    # coordinates2 = {
+    #     "IMG_1743.JPG":
+    #         {
+    #             1: [2347, 2697, 296, 407],
+    #             2: [904, 1262, 1980, 2082],
+    #             3: [2330, 2686, 1916, 2018],
+    #             4: [1051, 1387, 369, 474],
+    #             5: [1073, 1496, 3139, 3236],
+    #             6: [2551, 2939, 3095, 3199],
+    #             7: [2260, 2669, 714, 817]
+    #         }
+    # }
 
     test_images_paths = BatchTester.collect_test_images(folder_images)
     images = HostDeviceOptimizer.read_images(test_images_paths)
     images_gpu = HostDeviceOptimizer.load_images_to_GPU(images)
+    result = model.predict_using_coord(images_gpu, dumpers_coordinates)
 
 
 if __name__ == "__main__":
