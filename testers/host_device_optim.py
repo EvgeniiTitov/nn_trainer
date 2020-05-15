@@ -10,11 +10,6 @@ import cv2
 
 
 '''
-1. Send a full size image, load it into GPU (batch of images)
-2. Send coordinates of dumpers on those images to test
-3. Run your NN. 
-DO NOT TRANSFER DUMPERS SUBIMAGES HOST<->DEVICE
-
 Once images on GPU, send coordinates and references to images on GPU to your model,
 so that it can make predictions on images already loaded into GPU. There's no need to
 send actual images to your model if they've already been uploaded to your device
@@ -25,9 +20,8 @@ class HostDeviceOptimizer:
     """
 
     """
-
     @staticmethod
-    def load_images_to_GPU(images):
+    def load_images_to_GPU(images: list) -> torch.Tensor:
         image_tensors = list()
         for image in images:
             image_tensor = HostDeviceOptimizer._preprocess_image(image)
@@ -43,9 +37,8 @@ class HostDeviceOptimizer:
             print(f"Moving images to GPU failed. Error: {e}")
             raise
 
-
     @staticmethod
-    def _preprocess_image(image):
+    def _preprocess_image(image: Image.Image) -> torch.Tensor:
         """
 
         :param image:
@@ -61,7 +54,7 @@ class HostDeviceOptimizer:
         return image_transforms(image)
 
     @staticmethod
-    def read_images(paths) -> list:
+    def read_images(paths: list) -> list:
         images = []
         for path_to_image in paths:
             try:

@@ -5,6 +5,8 @@ import torchvision
 import sys
 import cv2
 from typing import List, Dict
+import torch.nn.functional as F
+from PIL import Image
 
 
 class TheModelClass(Module):
@@ -35,7 +37,7 @@ class TrainedModel():
 
         self.classes = classes
 
-    def predict_batch(self, batch_of_images: list):
+    def predict_batch(self, batch_of_images: List[Image.Image]) -> list:
         """
 
         :param images:
@@ -65,7 +67,7 @@ class TrainedModel():
 
         return labels
 
-    def _preprocess_image(self, image):
+    def _preprocess_image(self, image: Image.Image) -> torch.Tensor:
         """
 
         :param image:
@@ -81,9 +83,19 @@ class TrainedModel():
         )
         return image_transforms(image)
 
+    def _coord_preprocess_image(self, image: torch.Tensor) -> torch.Tensor:
+        image_transforms = torchvision.transforms.Compose([
+            transforms.Resize((255, 255)),
+            transforms.Normalize(
+                [0.485, 0.456, 0.406],
+                [0.229, 0.224, 0.225]
+            )]
+        )
+        return image_transforms(image)
+
     def predict_using_coord(
             self,
-            images_on_gpu: List[torch.Tensor],
+            images_on_gpu: torch.Tensor,
             coordinates: Dict[str, Dict]
     ):
         """
@@ -99,24 +111,32 @@ class TrainedModel():
         for i in range(len(images_on_gpu)):
             image = images_on_gpu[i]
             coord = coordinates[keys[i]]
-
+            # Loop over provided coordinates, and collect all subimages using the
+            # provided coordinates
             subimages = list()
             for value in coord.values():
                 top = value[0]
                 bottom = value[1]
                 left = value[2]
                 right = value[3]
-                print(left, top, right, bottom)
-
                 subimage = image[:, top:bottom, left:right]
-                subimages.append(subimage)
 
-            TrainedModel.visualise_sliced_img(subimages)
-            sys.exit()
-        # 2. Combine them in a batch
+                # Resize an image
+                subimage = subimage.unsqueeze(dim=0)  # interpolate requires extra dim
+                resized_subimage = F.interpolate(subimage, size=(256, 256))
+                subimages.append(resized_subimage)
 
-        # 3. Run these area through your model
+            # Create a batch
+            batch = torch.cat(subimages)
 
+            # Visualize slices subimages
+            #TrainedModel.visualise_sliced_img(subimages)
+
+            # Run NN, get predictions
+            predictions = self.run_forward_pass(batch)
+            print(predictions)
+
+    def run_forward_pass(self, images_on_gpu: torch.Tensor) -> list:
         with torch.no_grad():
             model_output = self.model(images_on_gpu)
 
@@ -127,6 +147,7 @@ class TrainedModel():
     @staticmethod
     def visualise_sliced_img(images: List[torch.Tensor]) -> None:
         for image in images:
+            image = image.squeeze()
             image = image.permute(1, 2, 0)
             image = image.cpu().numpy()
             #plt.imshow(image)
