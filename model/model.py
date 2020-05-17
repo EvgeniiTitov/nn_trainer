@@ -7,6 +7,15 @@ import cv2
 from typing import List, Dict
 import torch.nn.functional as F
 from PIL import Image
+import numpy as np
+
+
+'''
+TODO:
+1. Fix your bug
+2. Implement method that draws boxes using the provided coordinates. The defected ones color red
+3. Test
+'''
 
 
 class TheModelClass(Module):
@@ -17,7 +26,14 @@ class TrainedModel():
     """
 
     """
-    def __init__(self, load_type, path_to_data, classes, model_class=None):
+    def __init__(
+            self,
+            load_type,
+            path_to_data,
+            classes,
+            batch_size=10,
+            model_class=None
+    ):
         # Load entire model
         if load_type == "model":
             print("Attempting to load a model...")
@@ -26,7 +42,7 @@ class TrainedModel():
                 self.model.eval()
                 self.model.cuda()
             except Exception as e:
-                print("Failed to load the model:", path_to_data)
+                print(f"Failed to load the model: {path_to_data}. Error: {e}")
                 raise
             print("Model initialized")
 
@@ -36,6 +52,7 @@ class TrainedModel():
             raise NotImplementedError
 
         self.classes = classes
+        self.batch_size = batch_size
 
     def predict_batch(self, batch_of_images: List[Image.Image]) -> list:
         """
@@ -96,64 +113,62 @@ class TrainedModel():
     def predict_using_coord(
             self,
             images_on_gpu: torch.Tensor,
-            coordinates: Dict[str, Dict]
-    ) -> Dict[str, Dict]:
+            test_cases: list
+    ) -> None:
         """
+
         :param images_on_gpu:
-        :param coordinates:
+        :param test_cases:
         :return:
         """
-        assert len(images_on_gpu) == len(coordinates), "Nb of images != sets of coordinates"
-        keys = list(coordinates.keys())
-        output_format = {
-            "nb_of_dumpers": 0,
-            "status": []
-        }
-        output = {key: output_format for key in keys}
+        # TODO: Batch size
 
-        # Define regions on the images using coordinates provided that need to be run through
-        # the network to get classified: defected / not-defected vibration dumper
-        subimages_to_process = list()
-        for i in range(len(images_on_gpu)):
+        # IMPORTANT: It is assumed test cases and images on GPU come in the order when test case n
+        # belongs to images_on_gpu[n-1], etc.
+        assert len(images_on_gpu) == len(test_cases), "Nb of images != test cases"
+
+        dumpers_to_process = list()
+        for i, test_case in enumerate(test_cases):
             image = images_on_gpu[i]
-            coord = coordinates[keys[i]]
-            # Loop over provided coordinates, and collect all subimages using the
-            # provided coordinates
-            # Keep track of how many subimages created on each image
-            counter = 0
-            for value in coord.values():
-                # Slice (crop out) new subimage containing an object to classify
-                top = value[0]
-                bottom = value[1]
-                left = value[2]
-                right = value[3]
+            for key, value in test_case.dumpers.items():
+                coord = value["coord"]
+                assert isinstance(coord, list), "Something went wrong with coordinates"
+
+                # Crop out dumper using its coordinates on the image
+                top = coord[0]
+                bottom = coord[1]
+                left = coord[2]
+                right = coord[3]
                 subimage = image[:, top:bottom, left:right]
-                # Resize an image
+
+                # Resize an image and append to images to process
                 subimage = subimage.unsqueeze(dim=0)  # interpolate requires extra dim
                 resized_subimage = F.interpolate(subimage, size=(256, 256))
-                subimages_to_process.append(resized_subimage)
-                counter += 1
+                dumpers_to_process.append(resized_subimage)
 
-            output[keys[i]]["nb_of_dumpers"] = counter
-
-        nb_of_objects = len(subimages_to_process)
         # Create a batch
-        batch = torch.cat(subimages_to_process)
+        try:
+            batch = torch.cat(dumpers_to_process)
+        except Exception as e:
+            print(f"Failed during batch concatination. Error: {e}")
+            raise
+
         # Visualize slices subimages
-        #TrainedModel.visualise_sliced_img(subimages_to_process)
+        #TrainedModel.visualise_sliced_img(dumpers_to_process)
+
         # Run NN, get predictions
         predictions = self.run_forward_pass(batch)
-        # Match predictions with appropriate images
-        for key, value in output.items():
-            nb_of_dumpers = value["nb_of_dumpers"]
-            items = list()
-            for i in range(nb_of_dumpers):
-                items.append(predictions.pop(0))
-            value["status"] = items
-            assert nb_of_dumpers == len(value["status"]), "ERROR: Matching went wrong"
-        assert not predictions, "ERROR: Not all results have been matched"
 
-        return output
+        # Loop over all test cases and match the results
+        assert len(predictions) == sum(e.nb_of_dumpers for e in test_cases), \
+                                    "Nb of predicts doesn't match the number of test dumpers"
+        result_index = 0
+        for test_case in test_cases:
+            nb_of_dumpers = test_case.nb_of_dumpers
+            for i in range(nb_of_dumpers):
+                test_case.dumpers[i]["defected"] = predictions[result_index]
+                result_index += 1
+
 
     def run_forward_pass(self, images_on_gpu: torch.Tensor) -> list:
         with torch.no_grad():
@@ -169,6 +184,7 @@ class TrainedModel():
             image = image.squeeze()
             image = image.permute(1, 2, 0)
             image = image.cpu().numpy()
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             #plt.imshow(image)
-            cv2.imshow("window", image)
+            cv2.imshow("window", image_rgb)
             cv2.waitKey(0)

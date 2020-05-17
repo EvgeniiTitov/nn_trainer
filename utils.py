@@ -1,6 +1,34 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import cv2
+import os
+
+
+class BBDrawer:
+
+    @staticmethod
+    def draw_bbs(image, objs):
+        for key, value in objs.items():
+            coordinates = value["coord"]
+            defeciency_status = value["defected"]
+            top = coordinates[0]
+            bot = coordinates[1]
+            left = coordinates[2]
+            right = coordinates[3]
+            colour = (0, 255, 0) if defeciency_status == "ok" else (0, 0, 255)
+            cv2.rectangle(image, (left, top), (right, bot), colour, thickness=4)
+
+        # cv2.imshow("", image)
+        # cv2.waitKey(0)
+
+    @staticmethod
+    def save_image(image, save_path, name):
+        save_name = os.path.join(save_path, name)
+        try:
+            cv2.imwrite(save_name, image)
+        except Exception as e:
+            print(f"Failed to save image: {name}. Error: {e}")
 
 
 class Visualizer:
