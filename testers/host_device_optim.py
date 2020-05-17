@@ -6,10 +6,9 @@ import torch
 from utils import BBDrawer
 from testers.batch_processing_test import BatchTester
 from PIL import Image
-import sys
-import numpy as np
 import cv2
 import os
+import sys
 
 
 '''
@@ -23,10 +22,12 @@ your workers instead of actual images.
 
 
 class TestImage:
+    """
+    Simulates the object representation format used in the app
+    """
     def __init__(self, image_name: str, dumpers: List[list]):
         self.name = image_name
         self.nb_of_dumpers = len(dumpers)
-
         self.dumpers = dict()
         for i, dumper in enumerate(dumpers):
             self.dumpers[i] = {
@@ -128,9 +129,8 @@ def main():
         ("DJI_0214_700.jpg", [[495, 592, 806, 1004], [545, 650, 1474, 1635]]),
         ("DJI_0217_600.jpg", [[484, 620, 76, 287], [559, 668, 924, 1114]]),
         ("DJI_0224_1150.jpg", [[564, 659, 119, 332], [648, 760, 779, 960]]),
-        ("DJI_0249_2300.jpg", [[191, 288, 1339, 1528], [228, 291, 813, 919]]),
-        ("DJI_0229_2600.jpg", [[829, 923, 823, 1035], [878, 977, 1467, 1623]])
-
+        ("DJI_0229_2600.jpg", [[829, 923, 823, 1035], [878, 977, 1467, 1623]]),
+        ("DJI_0249_2300.jpg", [[191, 288, 1339, 1528], [228, 291, 813, 919]])
     ]
 
     test_instances = list()
@@ -143,7 +143,8 @@ def main():
     names_images = HostDeviceOptimizer.read_images(test_images_paths)
     # convert imgs into torch.Tensor, .cat() them and move to GPU
     image_names, images_gpu = HostDeviceOptimizer.load_images_to_GPU(names_images)
-
+    assert image_names == list(e.name for e in test_instances), "Your shitty method doesn't work"
+    # run NN for the test cases
     model.predict_using_coord(images_gpu, test_instances)
 
     for index, test_case in enumerate(test_instances):

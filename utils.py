@@ -8,7 +8,7 @@ import os
 class BBDrawer:
 
     @staticmethod
-    def draw_bbs(image, objs):
+    def draw_bbs(image: np.ndarray, objs: dict) -> None:
         for key, value in objs.items():
             coordinates = value["coord"]
             defeciency_status = value["defected"]
@@ -23,7 +23,7 @@ class BBDrawer:
         # cv2.waitKey(0)
 
     @staticmethod
-    def save_image(image, save_path, name):
+    def save_image(image: np.ndarray, save_path: str, name: str) -> None:
         save_name = os.path.join(save_path, name)
         try:
             cv2.imwrite(save_name, image)
@@ -34,7 +34,7 @@ class BBDrawer:
 class Visualizer:
 
     @staticmethod
-    def visualize_models_performance(models_performance):
+    def visualize_models_performance(models_performance: dict):
         """
 
         :param models_performance:
